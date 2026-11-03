@@ -149,7 +149,7 @@ fun CaroLineAnimeAvatarView(
         label = "sonic_alpha"
     )
 
-    // Thinking SUMAN halo rotation
+    // Thinking halo rotation
     val haloRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
@@ -295,7 +295,7 @@ fun CaroLineAnimeAvatarView(
                     if (customAvatarUri != null) {
                         AsyncImage(
                             model = customAvatarUri,
-                            contentDescription = "Boss's Custom Avatar for CaroLine",
+                            contentDescription = "Custom Avatar for CaroLine AI",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -442,7 +442,7 @@ fun CaroLineAnimeAvatarView(
                     )
                 }
 
-                // D. Thinking SUMAN Brain Synaptic Halo
+                // D. Thinking Synaptic Halo
                 if (activeEmotion == AvatarEmotion.THINKING) {
                     val haloRadius = w * 0.42f
                     val haloCenter = Offset(centerX, h * 0.24f)
@@ -509,13 +509,13 @@ fun CaroLineAnimeAvatarView(
                 androidx.compose.foundation.layout.Spacer(modifier = Modifier.size(6.dp))
                 Text(
                     text = when (liveState) {
-                        LiveState.SPEAKING -> "CAROLINE SPEAKING"
-                        LiveState.LISTENING -> "LISTENING TO BOSS"
-                        LiveState.CONNECTING -> "SUMAN CONNECTING..."
-                        LiveState.THINKING -> "SUMAN BRAIN PROCESSING"
-                        LiveState.RECONNECTING -> "RECONNECTING LIVE..."
-                        LiveState.ERROR -> "SYSTEM NOTICE"
-                        LiveState.DISCONNECTED -> "STANDBY FOR BOSS"
+                        LiveState.SPEAKING -> "ক্যারোলাইন কথা বলছে"
+                        LiveState.LISTENING -> "ক্যারোলাইন শুনছে"
+                        LiveState.CONNECTING -> "সংযোগ হচ্ছে..."
+                        LiveState.THINKING -> "ক্যারোলাইন চিন্তা করছে..."
+                        LiveState.RECONNECTING -> "পুনরায় সংযোগ হচ্ছে..."
+                        LiveState.ERROR -> "সিস্টেম নোটিশ"
+                        LiveState.DISCONNECTED -> "ভয়েস মোড প্রস্তুত"
                     },
                     color = Color.White,
                     fontSize = 11.sp,

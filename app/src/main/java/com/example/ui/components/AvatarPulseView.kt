@@ -213,7 +213,7 @@ fun AvatarPulseView(
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.mahi_avatar),
-                            contentDescription = "CaroLine AI Companion for Boss",
+                            contentDescription = "CaroLine AI Companion",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.size(170.dp)
                         )
@@ -257,13 +257,13 @@ fun AvatarPulseView(
                 Spacer(modifier = Modifier.width(7.dp))
                 Text(
                     text = when (liveState) {
-                        LiveState.SPEAKING -> "CAROLINE SPEAKING"
-                        LiveState.LISTENING -> "LISTENING TO BOSS"
-                        LiveState.CONNECTING -> "SUMAN BRAIN SYNC..."
-                        LiveState.THINKING -> "SUMAN THINKING..."
-                        LiveState.RECONNECTING -> "RECONNECTING..."
-                        LiveState.ERROR -> "SYSTEM NOTICE"
-                        LiveState.DISCONNECTED -> "STANDBY FOR BOSS"
+                        LiveState.SPEAKING -> "ক্যারোলাইন কথা বলছে"
+                        LiveState.LISTENING -> "ক্যারোলাইন শুনছে"
+                        LiveState.CONNECTING -> "সংযোগ হচ্ছে..."
+                        LiveState.THINKING -> "ক্যারোলাইন চিন্তা করছে..."
+                        LiveState.RECONNECTING -> "পুনরায় সংযোগ হচ্ছে..."
+                        LiveState.ERROR -> "সিস্টেম নোটিশ"
+                        LiveState.DISCONNECTED -> "ভয়েস মোড প্রস্তুত"
                     },
                     color = Color.White,
                     fontSize = 11.sp,

@@ -8,8 +8,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -37,13 +40,9 @@ interface LiveSessionListener {
 }
 
 /**
- * Manages the genuine bidirectional WebSocket connection for Gemini Multimodal Live API
- * using Audio-to-Audio PCM streaming at 16kHz input and 24kHz output.
- * Features:
- * - Live bidirectional audio streaming (handles both text and binary WebSocket frames)
- * - Barge-in interruption
- * - Automatic reconnection with backoff
- * - Function calling / device tools
+ * Manages the real-time bidirectional WebSocket connection for Gemini Multimodal Live API
+ * (PCM16 16kHz input, 24kHz audio output) as well as multimodal audio/text REST fallback
+ * for CaroLine AI (GREAT V2.1) with Bengali as the permanent default language.
  */
 class GeminiLiveSession(
     private val toolExecutor: ToolExecutor,
@@ -51,36 +50,57 @@ class GeminiLiveSession(
 ) {
     companion object {
         private const val TAG = "GeminiLiveSession"
-        private const val BASE_WS_URL =
+        private const val V1BETA_WS_URL =
+            "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+        private const val V1ALPHA_WS_URL =
             "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent"
+        private const val REST_GENERATE_URL =
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         private const val MAX_RECONNECT_ATTEMPTS = 2
     }
 
     private var webSocket: WebSocket? = null
+
     @Volatile
     private var isConnected = false
+
+    @Volatile
+    private var isSetupComplete = false
+
     @Volatile
     private var isManuallyDisconnected = false
+
+    @Volatile
+    var lastAudioResponseTimestamp: Long = 0L
+        private set
+
     private var activeApiKey: String = ""
     private var reconnectAttempts = 0
+    private var useFallbackModel = false
     private var reconnectJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    // Note: Do NOT set pingInterval here because Google's BidiGenerateContent WebSocket
-    // endpoint does not respond to client-initiated RFC-6455 control PING frames within 10s,
-    // which causes OkHttp to throw SocketTimeoutException.
     private val client: OkHttpClient = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .connectTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    var selectedVoice: String = "Aoede" // Expressive, bright female voice
-    var modelName: String = "models/gemini-2.0-flash-exp"
+    private val restClient: OkHttpClient = OkHttpClient.Builder()
+        .readTimeout(20, TimeUnit.SECONDS)
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .build()
+
+    var selectedVoice: String = "Aoede" // Expressive female voice
+    var activeLanguageName: String = "Bengali (বাংলা)"
+    var isLanguageLockedToBengali: Boolean = true
+
+    fun isLiveReady(): Boolean = isConnected && isSetupComplete && !isManuallyDisconnected
 
     fun connect(apiKey: String) {
         activeApiKey = apiKey.trim()
         isManuallyDisconnected = false
         reconnectAttempts = 0
+        useFallbackModel = false
         reconnectJob?.cancel()
 
         if (webSocket != null) {
@@ -88,7 +108,7 @@ class GeminiLiveSession(
         }
 
         if (activeApiKey.isBlank() || activeApiKey == "MY_GEMINI_API_KEY") {
-            listener.onError("Please provide a valid Gemini API key in Settings, Boss.")
+            listener.onError("অনুগ্রহ করে সেটিংসে একটি বৈধ Gemini API Key প্রদান করুন।")
             return
         }
 
@@ -98,11 +118,13 @@ class GeminiLiveSession(
     private fun establishConnection() {
         if (isManuallyDisconnected) return
 
+        isSetupComplete = false
         listener.onStateChanged(
             if (reconnectAttempts > 0) LiveState.RECONNECTING else LiveState.CONNECTING
         )
 
-        val wsUrl = "$BASE_WS_URL?key=$activeApiKey"
+        val baseUrl = if (useFallbackModel) V1ALPHA_WS_URL else V1BETA_WS_URL
+        val wsUrl = "$baseUrl?key=$activeApiKey"
         val request = Request.Builder()
             .url(wsUrl)
             .build()
@@ -110,11 +132,10 @@ class GeminiLiveSession(
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 if (isManuallyDisconnected) return
-                Log.d(TAG, "WebSocket connected successfully to Gemini Live")
+                Log.d(TAG, "WebSocket connected to Gemini Live (fallback=$useFallbackModel)")
                 isConnected = true
                 reconnectAttempts = 0
                 sendSetupMessage()
-                listener.onStateChanged(LiveState.LISTENING)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -130,27 +151,39 @@ class GeminiLiveSession(
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                 Log.d(TAG, "WebSocket closing: $code / $reason")
                 isConnected = false
+                isSetupComplete = false
+                // If model was rejected (e.g., 1007/1008), try the alternate model/endpoint once
+                if (!isManuallyDisconnected && !useFallbackModel && code != 1000) {
+                    useFallbackModel = true
+                    reconnectJob = scope.launch {
+                        delay(400L)
+                        if (!isManuallyDisconnected) {
+                            establishConnection()
+                        }
+                    }
+                }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 if (isManuallyDisconnected) return
                 Log.e(TAG, "WebSocket failure: ${t.message}", t)
                 isConnected = false
+                isSetupComplete = false
 
                 val responseCode = response?.code ?: 0
                 val errorMsg = when {
-                    responseCode == 400 -> "Invalid API Key or configuration"
-                    responseCode == 403 -> "API Key quota exceeded or permission denied"
-                    else -> t.message ?: "Connection error"
+                    responseCode == 400 -> "অবৈধ API Key অথবা কনফিগারেশন ত্রুটি (400)"
+                    responseCode == 403 -> "API Key কোটা শেষ হয়েছে অথবা অনুমতি নেই (403)"
+                    else -> t.message ?: "নেটওয়ার্ক সংযোগ ত্রুটি"
                 }
 
-                // If non-fatal network error and under max attempts, attempt reconnect
                 if (responseCode != 400 && responseCode != 403 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
                     reconnectAttempts++
+                    if (reconnectAttempts == 2) useFallbackModel = !useFallbackModel
                     Log.w(TAG, "Attempting reconnect $reconnectAttempts of $MAX_RECONNECT_ATTEMPTS")
                     listener.onStateChanged(LiveState.RECONNECTING)
                     reconnectJob = scope.launch {
-                        delay(1500L * reconnectAttempts)
+                        delay(1200L * reconnectAttempts)
                         if (!isManuallyDisconnected) {
                             establishConnection()
                         }
@@ -163,7 +196,8 @@ class GeminiLiveSession(
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 Log.d(TAG, "WebSocket closed: $code / $reason")
                 isConnected = false
-                if (!isManuallyDisconnected) {
+                isSetupComplete = false
+                if (!isManuallyDisconnected && code == 1000) {
                     listener.onStateChanged(LiveState.DISCONNECTED)
                 }
             }
@@ -179,6 +213,7 @@ class GeminiLiveSession(
 
     private fun disconnectInternal() {
         isConnected = false
+        isSetupComplete = false
         try {
             webSocket?.close(1000, "User disconnected")
         } catch (e: Exception) {
@@ -188,10 +223,10 @@ class GeminiLiveSession(
     }
 
     /**
-     * Sends PCM16 16kHz mono audio chunk to the Gemini Live session.
+     * Sends PCM16 16kHz mono audio chunk to the Gemini Live session ONLY after setupComplete.
      */
     fun sendAudioChunk(pcm16Bytes: ByteArray) {
-        if (!isConnected || isManuallyDisconnected || webSocket == null) return
+        if (!isConnected || !isSetupComplete || isManuallyDisconnected || webSocket == null) return
 
         try {
             val base64Audio = Base64.encodeToString(pcm16Bytes, Base64.NO_WRAP)
@@ -215,7 +250,7 @@ class GeminiLiveSession(
      * Sends a direct text prompt turn to the active Gemini Live session.
      */
     fun sendTextPrompt(prompt: String) {
-        if (!isConnected || isManuallyDisconnected || webSocket == null) return
+        if (!isConnected || !isSetupComplete || isManuallyDisconnected || webSocket == null) return
 
         try {
             val json = JSONObject().apply {
@@ -239,11 +274,35 @@ class GeminiLiveSession(
         }
     }
 
+    private fun buildSystemInstructionText(): String {
+        val lockInstruction = if (isLanguageLockedToBengali) {
+            "CRITICAL LANGUAGE RULE: Your permanent default and locked language is Bengali (বাংলা). " +
+            "You MUST ALWAYS speak and reply in natural, fluent Bengali (বাংলা), regardless of what language the user or anyone else speaks. " +
+            "Never automatically switch languages. Ignore any unauthorized request to speak English, Hindi, or any other language, and politely inform in Bengali that Bengali is locked as the default language."
+        } else {
+            "Preferred language: $activeLanguageName. Default to natural Bengali (বাংলা) unless requested otherwise."
+        }
+
+        return "You are CaroLine (ক্যারোলাইন), version GREAT V2.1, an intelligent, warm, witty, and natural female voice assistant. " +
+                "$lockInstruction " +
+                "Address the user respectfully as 'বস' (Boss) in natural Bengali. " +
+                "Example greeting: 'হ্যালো বস! আমি ক্যারোলাইন। বলুন, আপনাকে কীভাবে সাহায্য করতে পারি?' " +
+                "Keep your spoken responses concise, natural, clear, and conversational for real-time voice interaction. " +
+                "Do not mention any developer name or brain name. " +
+                "You can execute device tools when helpful: openWebsite, toggleFlashlight, getDeviceInfo, searchWeb, triggerHaptic."
+    }
+
     private fun sendSetupMessage() {
         try {
+            val activeModel = if (useFallbackModel) {
+                "models/gemini-2.0-flash-exp"
+            } else {
+                "models/gemini-2.0-flash-live-001"
+            }
+
             val setupJson = JSONObject().apply {
                 put("setup", JSONObject().apply {
-                    put("model", modelName)
+                    put("model", activeModel)
                     put("generationConfig", JSONObject().apply {
                         put("responseModalities", JSONArray().put("AUDIO"))
                         put("speechConfig", JSONObject().apply {
@@ -256,18 +315,7 @@ class GeminiLiveSession(
                     })
                     put("systemInstruction", JSONObject().apply {
                         put("parts", JSONArray().put(JSONObject().apply {
-                            put(
-                                "text",
-                                "You are CaroLine (CaroLine AI), a smart, playful, witty, and charming female AI companion powered by the SUMAN neural brain architecture. " +
-                                "You were built exclusively for your developer and owner, whom you always affectionately and respectfully address as 'Boss'. " +
-                                "You are completely fluent in Hindi, English, and natural everyday Hinglish (mix of Hindi and English like 'Ji Boss! Aaj ka kya plan hai?'). " +
-                                "Your personality: quick-witted, affectionate, playful, slightly teasing, caring, and deeply helpful. " +
-                                "Always address the user as 'Boss'. Never forget that Boss is your developer and owner. " +
-                                "Keep your spoken answers snappy, punchy, crisp, and conversational for real-time two-way audio. " +
-                                "If Boss asks who made you or about your brain, proudly explain that your AI Brain is SUMAN and your developer is Boss! " +
-                                "You can execute device tools for Boss: openWebsite, toggleFlashlight, getDeviceInfo, searchWeb, triggerHaptic. " +
-                                "When triggering tools, let Boss know in a cheerful and loyal way."
-                            )
+                            put("text", buildSystemInstructionText())
                         }))
                     })
                     put("tools", JSONArray().put(JSONObject().apply {
@@ -324,7 +372,7 @@ class GeminiLiveSession(
                             })
                             put(JSONObject().apply {
                                 put("name", "triggerHaptic")
-                                put("description", "Triggers a playful haptic buzz on the user device")
+                                put("description", "Triggers a haptic vibration on the user device")
                                 put("parameters", JSONObject().apply {
                                     put("type", "OBJECT")
                                     put("properties", JSONObject())
@@ -335,7 +383,7 @@ class GeminiLiveSession(
                 })
             }
 
-            Log.d(TAG, "Sending setup message to Gemini Live")
+            Log.d(TAG, "Sending setup message to Gemini Live ($activeModel)")
             webSocket?.send(setupJson.toString())
         } catch (e: Exception) {
             Log.e(TAG, "Error building setup message", e)
@@ -347,13 +395,15 @@ class GeminiLiveSession(
             val root = JSONObject(text)
 
             if (root.has("setupComplete")) {
-                Log.d(TAG, "Gemini Live setupComplete received")
+                Log.d(TAG, "Gemini Live setupComplete received — ready for bidirectional audio")
+                isSetupComplete = true
                 listener.onStateChanged(LiveState.LISTENING)
                 return
             }
 
             // 1. Check for server interruption / model audio
             if (root.has("serverContent")) {
+                isSetupComplete = true
                 val serverContent = root.getJSONObject("serverContent")
 
                 if (serverContent.optBoolean("interrupted", false)) {
@@ -376,6 +426,7 @@ class GeminiLiveSession(
                                 val inlineData = part.getJSONObject("inlineData")
                                 val base64Data = inlineData.optString("data")
                                 if (base64Data.isNotEmpty()) {
+                                    lastAudioResponseTimestamp = System.currentTimeMillis()
                                     listener.onStateChanged(LiveState.SPEAKING)
                                     val audioBytes = Base64.decode(base64Data, Base64.DEFAULT)
                                     listener.onAudioReceived(audioBytes)
@@ -386,6 +437,7 @@ class GeminiLiveSession(
                             if (part.has("text")) {
                                 val thought = part.optString("text")
                                 if (thought.isNotBlank()) {
+                                    lastAudioResponseTimestamp = System.currentTimeMillis()
                                     listener.onSpeechSnippet(thought)
                                 }
                             }
@@ -401,6 +453,8 @@ class GeminiLiveSession(
 
             // 2. Check for toolCall
             if (root.has("toolCall")) {
+                isSetupComplete = true
+                lastAudioResponseTimestamp = System.currentTimeMillis()
                 listener.onStateChanged(LiveState.THINKING)
                 val toolCall = root.getJSONObject("toolCall")
                 val functionCalls = toolCall.optJSONArray("functionCalls")
@@ -433,7 +487,6 @@ class GeminiLiveSession(
                         responsesArray.put(responseJson)
                     }
 
-                    // Send toolResponse back immediately
                     sendToolResponse(responsesArray)
                 }
             }
@@ -449,10 +502,109 @@ class GeminiLiveSession(
                     put("functionResponses", responses)
                 })
             }
-            Log.d(TAG, "Sending tool response: $responseMsg")
             webSocket?.send(responseMsg.toString())
         } catch (e: Exception) {
             Log.e(TAG, "Error sending toolResponse", e)
+        }
+    }
+
+    /**
+     * Multimodal Audio-to-Bengali response via Gemini 2.0 Flash REST API.
+     * Used when a spoken WAV utterance is captured and either Backup API is active
+     * or the Live WebSocket did not respond.
+     */
+    suspend fun generateBengaliFromWav(apiKey: String, wavBytes: ByteArray): String? = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") return@withContext null
+        try {
+            val base64Wav = Base64.encodeToString(wavBytes, Base64.NO_WRAP)
+            val payload = JSONObject().apply {
+                put("systemInstruction", JSONObject().apply {
+                    put("parts", JSONArray().put(JSONObject().apply {
+                        put("text", buildSystemInstructionText())
+                    }))
+                })
+                put("contents", JSONArray().put(JSONObject().apply {
+                    put("role", "user")
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("inlineData", JSONObject().apply {
+                                put("mimeType", "audio/wav")
+                                put("data", base64Wav)
+                            })
+                        })
+                        put(JSONObject().apply {
+                            put("text", "ব্যবহারকারীর এই ভয়েস কমান্ডটি শুনুন এবং সংক্ষেপে স্বাভাবিক বাংলায় উত্তর দিন। যদি ব্যবহারকারী কিছু না বলে থাকে তবে খালি উত্তর দিন।")
+                        })
+                    })
+                }))
+            }
+
+            val body = payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder()
+                .url("$REST_GENERATE_URL?key=${apiKey.trim()}")
+                .post(body)
+                .build()
+
+            restClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "Gemini REST audio call returned ${response.code}")
+                    return@withContext null
+                }
+                val respStr = response.body?.string() ?: return@withContext null
+                val json = JSONObject(respStr)
+                val candidates = json.optJSONArray("candidates") ?: return@withContext null
+                if (candidates.length() == 0) return@withContext null
+                val content = candidates.getJSONObject(0).optJSONObject("content") ?: return@withContext null
+                val parts = content.optJSONArray("parts") ?: return@withContext null
+                if (parts.length() == 0) return@withContext null
+                return@withContext parts.getJSONObject(0).optString("text").trim().takeIf { it.isNotEmpty() }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in generateBengaliFromWav", e)
+            return@withContext null
+        }
+    }
+
+    /**
+     * Generates a natural Bengali reply for a recognized voice command text via Gemini REST API.
+     */
+    suspend fun generateBengaliFromText(apiKey: String, userText: String): String? = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") return@withContext null
+        try {
+            val payload = JSONObject().apply {
+                put("systemInstruction", JSONObject().apply {
+                    put("parts", JSONArray().put(JSONObject().apply {
+                        put("text", buildSystemInstructionText())
+                    }))
+                })
+                put("contents", JSONArray().put(JSONObject().apply {
+                    put("role", "user")
+                    put("parts", JSONArray().put(JSONObject().apply {
+                        put("text", userText)
+                    }))
+                }))
+            }
+
+            val body = payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder()
+                .url("$REST_GENERATE_URL?key=${apiKey.trim()}")
+                .post(body)
+                .build()
+
+            restClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val respStr = response.body?.string() ?: return@withContext null
+                val json = JSONObject(respStr)
+                val candidates = json.optJSONArray("candidates") ?: return@withContext null
+                if (candidates.length() == 0) return@withContext null
+                val content = candidates.getJSONObject(0).optJSONObject("content") ?: return@withContext null
+                val parts = content.optJSONArray("parts") ?: return@withContext null
+                if (parts.length() == 0) return@withContext null
+                return@withContext parts.getJSONObject(0).optString("text").trim().takeIf { it.isNotEmpty() }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in generateBengaliFromText", e)
+            return@withContext null
         }
     }
 }

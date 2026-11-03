@@ -195,7 +195,7 @@ fun CaroLineFaceView(
                 center = center
             )
 
-            // --- 2. Thinking Halo (SUMAN Brain Activity) ---
+            // --- 2. Thinking Halo ---
             if (activeExpression == FaceExpression.THINKING) {
                 drawThinkingNeuralHalo(center, haloRotation, canvasW * 0.46f)
             }
@@ -304,7 +304,7 @@ fun CaroLineFaceView(
                 glowColor = glowColor
             )
 
-            // --- 10. Cute Forehead Symbol / SUMAN Neuro-Core ---
+            // --- 10. Cute Forehead Symbol ---
             val coreY = center.y - faceRadius * 0.68f
             drawCircle(
                 brush = Brush.radialGradient(

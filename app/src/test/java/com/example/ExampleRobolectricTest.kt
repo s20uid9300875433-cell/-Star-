@@ -9,6 +9,7 @@ import com.example.ui.components.AvatarEmotion
 import com.example.ui.components.AvatarStyle
 import com.example.viewmodel.CaroLineViewModel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -66,12 +67,15 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `test CaroLineViewModel initial state for Boss`() {
+    fun `test CaroLineViewModel initial GREAT V2_1 Bengali state`() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val viewModel = CaroLineViewModel(app)
         val state = viewModel.uiState.value
-        assertEquals("Boss", state.developerName)
+        assertEquals("GREAT V2.1", state.appVersion)
+        assertTrue(state.isLanguageLocked)
+        assertTrue(state.activeLanguage.contains("বাংলা"))
         assertEquals(LiveState.DISCONNECTED, state.liveState)
+        assertFalse(state.isMicHardwareVerified)
         assertNotNull(state.speechSnippet)
     }
 }

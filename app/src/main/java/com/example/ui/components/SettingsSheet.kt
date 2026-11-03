@@ -1,8 +1,9 @@
 package com.example.ui.components
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,14 +20,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
+import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
@@ -39,6 +39,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -55,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -87,16 +89,23 @@ fun SettingsSheet(
     apiMode: ApiMode,
     selectedVoice: String,
     isHandsFreeMode: Boolean,
-    avatarMode: AvatarMode,
+    isBackgroundServiceEnabled: Boolean = true,
+    activeLanguage: String = "বাংলা (Bengali)",
+    isLanguageLocked: Boolean = true,
+    avatarMode: AvatarMode = AvatarMode.PROCEDURAL_ANIMATED_FACE,
     toolHistory: List<ToolExecutionEvent>,
     onSavePrimaryApiKey: (String) -> Unit,
     onSaveBackupApiKey: (String) -> Unit,
     onChangeApiMode: (ApiMode) -> Unit,
     onSelectVoice: (String) -> Unit,
     onToggleHandsFree: () -> Unit,
-    onToggleAvatarMode: () -> Unit,
+    onToggleBackgroundService: () -> Unit = {},
+    onChangeLanguageWithPin: (String, String) -> Boolean = { _, _ -> false },
+    onLockLanguageToBengali: () -> Unit = {},
+    onToggleAvatarMode: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var primaryKeyInput by remember { mutableStateOf(primaryApiKey) }
@@ -105,12 +114,15 @@ fun SettingsSheet(
     var showBackupKey by remember { mutableStateOf(false) }
     var isSavedConfirmation by remember { mutableStateOf(false) }
 
+    var ownerPinInput by remember { mutableStateOf("") }
+    var pinStatusMessage by remember { mutableStateOf<String?>(null) }
+
     val voices = listOf(
-        Pair("Aoede", "Confident, lively & charming (Recommended for CaroLine)"),
-        Pair("Kore", "Warm, sweet & playful"),
-        Pair("Puck", "Playful & cheeky"),
-        Pair("Fenrir", "Deep & bold"),
-        Pair("Charon", "Calm & steady")
+        Pair("Aoede", "স্বাভাবিক ও মিষ্টি নারী কণ্ঠ (ক্যারোলাইনের জন্য প্রস্তাবিত)"),
+        Pair("Kore", "উষ্ণ ও বন্ধুসুলভ নারী কণ্ঠ"),
+        Pair("Puck", "প্রাণবন্ত ও চঞ্চল কণ্ঠ"),
+        Pair("Fenrir", "গম্ভীর ও স্পষ্ট কণ্ঠ"),
+        Pair("Charon", "শান্ত ও স্থির কণ্ঠ")
     )
 
     ModalBottomSheet(
@@ -149,13 +161,13 @@ fun SettingsSheet(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "CaroLine AI Settings",
+                            text = "CaroLine AI সেটিংস",
                             color = TextPrimary,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "AI Brain: SUMAN • Developer: Boss",
+                            text = "GREAT V2.1 • বাংলা ভয়েস অ্যাসিস্ট্যান্ট",
                             color = CyanAccent,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
@@ -181,36 +193,242 @@ fun SettingsSheet(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.weight(1f, fill = false)
             ) {
-                // Security Notice Pill
+                // Section 1: Bengali Language Lock & Owner PIN
                 item {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF0F1B22),
-                        border = BorderStroke(1.dp, CyanAccent.copy(alpha = 0.4f)),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(16.dp),
+                        color = DeepSurfaceVariant,
+                        border = BorderStroke(1.dp, CyanAccent.copy(alpha = 0.5f))
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Security,
-                                contentDescription = "Security",
-                                tint = CyanAccent,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = "Language Lock",
+                                        tint = CyanAccent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "বাংলা ভাষা লক (Default Language Lock)",
+                                        color = TextPrimary,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isLanguageLocked) CyanAccent.copy(alpha = 0.2f) else AccentGold.copy(alpha = 0.2f)
+                                ) {
+                                    Text(
+                                        text = if (isLanguageLocked) "লক করা (বাংলা)" else activeLanguage,
+                                        color = if (isLanguageLocked) CyanAccent else AccentGold,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Secure Storage: API keys are stored in encrypted client preferences and never hardcoded in frontend code.",
+                                text = "ক্যারোলাইন সবসময় ডিফল্টভাবে বাংলায় কথা বলবে। অন্য কেউ অন্য ভাষায় কথা বললেও ভাষা পরিবর্তন হবে না। শুধুমাত্র অনুমোদিত মালিক পিন (ডিফল্ট: 1234) দিয়ে ভাষা পরিবর্তন করতে পারবেন।",
                                 color = TextSecondary,
-                                fontSize = 11.sp,
-                                lineHeight = 15.sp
+                                fontSize = 12.sp,
+                                lineHeight = 17.sp
                             )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedTextField(
+                                value = ownerPinInput,
+                                onValueChange = {
+                                    ownerPinInput = it
+                                    pinStatusMessage = null
+                                },
+                                placeholder = { Text("মালিকের গোপন পিন দিন (যেমন: 1234)", color = TextMuted) },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = CyanAccent,
+                                    unfocusedBorderColor = DarkBorder,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary,
+                                    cursorColor = CyanAccent
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("owner_pin_input")
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Button(
+                                    onClick = {
+                                        onLockLanguageToBengali()
+                                        pinStatusMessage = "বাংলা ভাষা স্থায়ী ডিফল্ট হিসেবে লক করা হয়েছে।"
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CyanAccent.copy(alpha = 0.25f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("বাংলা লক রাখুন", color = CyanAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        val ok = onChangeLanguageWithPin(ownerPinInput, "English")
+                                        pinStatusMessage = if (ok) {
+                                            "পিন যাচাই সফল! ভাষা পরিবর্তন করা হয়েছে।"
+                                        } else {
+                                            "ভুল পিন! ভাষা পরিবর্তন অনুমোদিত নয়।"
+                                        }
+                                    },
+                                    border = BorderStroke(1.dp, DarkBorder),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("পিন দিয়ে পরিবর্তন", color = TextSecondary, fontSize = 12.sp)
+                                }
+                            }
+
+                            if (pinStatusMessage != null) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = pinStatusMessage!!,
+                                    color = AccentGold,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }
 
-                // Section 1: Dual API Configuration (Primary & Backup)
+                // Section 2: Background Voice Service & Battery Optimization
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = DeepSurfaceVariant,
+                        border = BorderStroke(1.dp, DarkBorder)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.BatteryChargingFull,
+                                    contentDescription = "Background Service",
+                                    tint = CrimsonRedLight,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "ব্যাকগ্রাউন্ড ভয়েস সার্ভিস ও অটো-মাইক্রোফোন",
+                                    color = TextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Hands-free Toggle
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "অটোমেটিক কন্টিনিউয়াস মাইক্রোফোন",
+                                        color = TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "ক্যারোলাইন উত্তর দেওয়ার পর স্বয়ংক্রিয়ভাবে আবার আপনার কথা শুনবে",
+                                        color = TextSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Switch(
+                                    checked = isHandsFreeMode,
+                                    onCheckedChange = { onToggleHandsFree() },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = CrimsonRed
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Foreground Service Toggle
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "অ্যান্ড্রয়েড ব্যাকগ্রাউন্ড ফোরগ্রাউন্ড সার্ভিস",
+                                        color = TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "অ্যাপ মিনিমাইজ বা স্ক্রিন বন্ধ থাকলেও নোটিফিকেশনের মাধ্যমে ভয়েস মোড চালু রাখে",
+                                        color = TextSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Switch(
+                                    checked = isBackgroundServiceEnabled,
+                                    onCheckedChange = { onToggleBackgroundService() },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = CyanAccent
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {
+                                    }
+                                },
+                                border = BorderStroke(1.dp, CyanAccent.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "ব্যাটারি অপটিমাইজেশন সেটিংস খুলুন (Unrestricted করুন)",
+                                    color = CyanAccent,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Section 3: Dual API Configuration (Primary & Backup)
                 item {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
@@ -227,7 +445,7 @@ fun SettingsSheet(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Dual API Configuration",
+                                    text = "Dual API Configuration (ঐচ্ছিক)",
                                     color = TextPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -235,14 +453,14 @@ fun SettingsSheet(
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Real-time two-way voice uses Primary Gemini Live. If rate-limited or unavailable, auto-fails over to Backup API.",
+                                text = "API Key ছাড়াও ক্যারোলাইনের বিল্ট-ইন বাংলা ভয়েস ইঞ্জিন কাজ করে। রিয়েল-টাইম Gemini Live 24kHz অডিওর জন্য নিচে কী যোগ করতে পারেন।",
                                 color = TextSecondary,
                                 fontSize = 12.sp,
                                 lineHeight = 16.sp
                             )
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // 1A. Primary API Key
+                            // Primary API Key
                             Text(
                                 text = "Primary API Key (Gemini Live 24kHz)",
                                 color = CrimsonRedLight,
@@ -256,7 +474,7 @@ fun SettingsSheet(
                                     primaryKeyInput = it
                                     isSavedConfirmation = false
                                 },
-                                placeholder = { Text("Primary AI Studio Key...", color = TextMuted) },
+                                placeholder = { Text("Primary Gemini API Key...", color = TextMuted) },
                                 singleLine = true,
                                 visualTransformation = if (showPrimaryKey) VisualTransformation.None else PasswordVisualTransformation(),
                                 trailingIcon = {
@@ -283,7 +501,7 @@ fun SettingsSheet(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // 1B. Backup API Key
+                            // Backup API Key
                             Text(
                                 text = "Backup API Key (Secondary AI API)",
                                 color = CyanAccent,
@@ -324,7 +542,7 @@ fun SettingsSheet(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // 1C. Failover Mode Selector
+                            // Failover Mode Selector
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -378,7 +596,6 @@ fun SettingsSheet(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Save Button
                             Button(
                                 onClick = {
                                     onSavePrimaryApiKey(primaryKeyInput)
@@ -401,106 +618,16 @@ fun SettingsSheet(
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Keys Saved Securely!", fontWeight = FontWeight.Bold)
+                                    Text("API কী সংরক্ষিত হয়েছে!", fontWeight = FontWeight.Bold)
                                 } else {
-                                    Text("Save Dual API Keys", fontWeight = FontWeight.Bold)
+                                    Text("API কী সংরক্ষণ করুন", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
                     }
                 }
 
-                // Section 2: Conversation & Face Display Controls
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = DeepSurfaceVariant,
-                        border = BorderStroke(1.dp, DarkBorder)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Hearing,
-                                    contentDescription = "Voice Modes",
-                                    tint = CyanAccent,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Conversation & Persona Mode",
-                                    color = TextPrimary,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Hands-free Toggle
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Hands-Free Continuous Mode",
-                                        color = TextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = "Auto-listens after CaroLine finishes speaking without tapping mic",
-                                        color = TextSecondary,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                                Switch(
-                                    checked = isHandsFreeMode,
-                                    onCheckedChange = { onToggleHandsFree() },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = CrimsonRed
-                                    )
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Avatar Mode Toggle
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Animated Face Expression Engine",
-                                        color = TextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = if (avatarMode == AvatarMode.PROCEDURAL_ANIMATED_FACE)
-                                            "Active: Procedural listening, smiling, thinking & speaking face"
-                                        else "Active: 2D Anime Avatar Art Mode",
-                                        color = TextSecondary,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                                Switch(
-                                    checked = avatarMode == AvatarMode.PROCEDURAL_ANIMATED_FACE,
-                                    onCheckedChange = { onToggleAvatarMode() },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = CyanAccent
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Section 3: Voice Selection
+                // Section 4: Voice Selection
                 item {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
@@ -517,7 +644,7 @@ fun SettingsSheet(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "CaroLine's Spoken Voice",
+                                    text = "ক্যারোলাইনের কণ্ঠস্বর (Female Voice)",
                                     color = TextPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -572,7 +699,7 @@ fun SettingsSheet(
                     }
                 }
 
-                // Section 4: Tool Execution Log
+                // Section 5: Tool Execution Log
                 item {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
@@ -589,7 +716,7 @@ fun SettingsSheet(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Tool Execution Log for Boss",
+                                    text = "কমান্ড ও টুল লগ",
                                     color = TextPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -599,7 +726,7 @@ fun SettingsSheet(
 
                             if (toolHistory.isEmpty()) {
                                 Text(
-                                    text = "No tools triggered yet, Boss! Say: 'YouTube kholo', 'Flashlight on karo', or 'Battery check karo'.",
+                                    text = "এখনও কোনো ডিভাইস টুল ব্যবহৃত হয়নি। বলুন: 'সময় কত?', 'মোবাইলের ব্যাটারি কত?', অথবা 'ফ্ল্যাশলাইট চালু করো'।",
                                     color = TextMuted,
                                     fontSize = 12.sp,
                                     lineHeight = 16.sp

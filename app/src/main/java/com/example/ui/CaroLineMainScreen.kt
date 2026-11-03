@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -14,7 +15,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Hearing
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Settings
@@ -123,11 +124,13 @@ fun CaroLineMainScreen(
         )
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasRecordPermission = isGranted
-        if (isGranted) {
+    val permissionsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val audioGranted = grants[Manifest.permission.RECORD_AUDIO] == true ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        hasRecordPermission = audioGranted
+        if (audioGranted) {
             viewModel.startSession()
         }
     }
@@ -145,19 +148,17 @@ fun CaroLineMainScreen(
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { _ ->
-        // Returned from camera
     }
 
     val quickPrompts = listOf(
-        "👋 Hey CaroLine!",
-        "🔥 Boss ko roast karo!",
-        "💖 Boss ko tareef chahiye",
-        "🎬 YouTube kholo",
-        "🔦 Flashlight on karo",
-        "⚡ Battery kitni bachi hai?",
-        "😏 Are you flirting with me?",
-        "🍕 Aaj khane me kya lu, Boss?",
-        "🤫 Ek secret batao"
+        "👋 হ্যালো ক্যারোলাইন",
+        "🎧 ক্যারোলাইন, আমার কথা শোনো",
+        "⏰ সময় কত?",
+        "🌤️ আজকের আবহাওয়া বলো",
+        "🔋 মোবাইলের ব্যাটারি কত?",
+        "🔁 আবার কথা বলো",
+        "🔦 ফ্ল্যাশলাইট চালু করো",
+        "🛑 ভয়েস মোড বন্ধ করো"
     )
 
     val isCallActive = uiState.liveState != LiveState.DISCONNECTED && uiState.liveState != LiveState.ERROR
@@ -168,7 +169,7 @@ fun CaroLineMainScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF240638), // Rich futuristic purple
+                        Color(0xFF240638),
                         Color(0xFF13031F),
                         DeepObsidian,
                         Color(0xFF180424)
@@ -185,7 +186,7 @@ fun CaroLineMainScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // --- TOP HEADER (CAROLINE AI • DEVELOPED BY BOSS) ---
+            // --- TOP HEADER (CaroLine AI • GREAT V2.1) ---
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -193,7 +194,7 @@ fun CaroLineMainScreen(
                     .fillMaxWidth()
                     .padding(top = 8.dp, bottom = 4.dp)
             ) {
-                // Left: Brand title & Subtitle
+                // Left: Brand title & Version Badge (Zero developer or brain branding)
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -213,53 +214,63 @@ fun CaroLineMainScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "CAROLINE AI",
+                            text = "CaroLine AI",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Black,
                             color = TextPrimary,
-                            letterSpacing = 1.5.sp
+                            letterSpacing = 1.sp
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = when (uiState.activeEngine) {
-                                ActiveEngine.PRIMARY_GEMINI_LIVE -> CrimsonRed.copy(alpha = 0.25f)
-                                ActiveEngine.BACKUP_SECONDARY_AI -> CyanAccent.copy(alpha = 0.25f)
-                                ActiveEngine.LOCAL_SUMAN_BRAIN -> ElectricViolet.copy(alpha = 0.25f)
-                            },
-                            border = BorderStroke(
-                                1.dp,
-                                when (uiState.activeEngine) {
-                                    ActiveEngine.PRIMARY_GEMINI_LIVE -> CrimsonRed.copy(alpha = 0.6f)
-                                    ActiveEngine.BACKUP_SECONDARY_AI -> CyanAccent.copy(alpha = 0.6f)
-                                    ActiveEngine.LOCAL_SUMAN_BRAIN -> ElectricViolet.copy(alpha = 0.6f)
-                                }
-                            )
+                            color = CrimsonRed.copy(alpha = 0.25f),
+                            border = BorderStroke(1.dp, CrimsonRed.copy(alpha = 0.7f))
                         ) {
                             Text(
-                                text = when (uiState.activeEngine) {
-                                    ActiveEngine.PRIMARY_GEMINI_LIVE -> "GEMINI LIVE 24kHz"
-                                    ActiveEngine.BACKUP_SECONDARY_AI -> "BACKUP AI"
-                                    ActiveEngine.LOCAL_SUMAN_BRAIN -> "SUMAN BRAIN"
-                                },
-                                color = when (uiState.activeEngine) {
-                                    ActiveEngine.PRIMARY_GEMINI_LIVE -> CrimsonRedLight
-                                    ActiveEngine.BACKUP_SECONDARY_AI -> CyanAccent
-                                    ActiveEngine.LOCAL_SUMAN_BRAIN -> AccentGold
-                                },
+                                text = uiState.appVersion,
+                                color = AccentGold,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
-                    Text(
-                        text = "Your AI Companion • Developed by ${uiState.developerName}",
-                        color = Color(0xFFFF75B5),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 18.dp, top = 2.dp)
-                    )
+
+                    // Status Bar Row: Language Lock + Engine + Background Service
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(start = 18.dp, top = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Language Lock",
+                                tint = CyanAccent,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (uiState.isLanguageLocked) "ভাষা: বাংলা (লক করা)" else "ভাষা: ${uiState.activeLanguage}",
+                                color = CyanAccent,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Text(
+                            text = "•",
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+
+                        Text(
+                            text = if (uiState.isForegroundServiceRunning) "BG সার্ভিস সচল" else "BG সার্ভিস প্রস্তুত",
+                            color = if (uiState.isForegroundServiceRunning) Color(0xFF4CAF50) else Color(0xFFFF75B5),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
 
                 // Right: Action Icons (Camera, Upload, Help, Settings)
@@ -267,7 +278,6 @@ fun CaroLineMainScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    // Camera Button
                     IconButton(
                         onClick = {
                             val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
@@ -287,7 +297,6 @@ fun CaroLineMainScreen(
                         )
                     }
 
-                    // Upload Avatar Button (Photo Picker)
                     IconButton(
                         onClick = {
                             photoPickerLauncher.launch(
@@ -306,7 +315,6 @@ fun CaroLineMainScreen(
                         )
                     }
 
-                    // Help & Education Button
                     IconButton(
                         onClick = { showHelp = true },
                         modifier = Modifier
@@ -321,7 +329,6 @@ fun CaroLineMainScreen(
                         )
                     }
 
-                    // Settings Button
                     IconButton(
                         onClick = { showSettings = true },
                         modifier = Modifier
@@ -357,6 +364,7 @@ fun CaroLineMainScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
+                        .clickable { viewModel.clearError() }
                         .testTag("error_banner")
                 ) {
                     Row(
@@ -395,7 +403,7 @@ fun CaroLineMainScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Speech / Thought Bubble (Hindi + English + Hinglish)
+            // Bengali Speech / Thought Bubble
             Surface(
                 shape = RoundedCornerShape(18.dp),
                 color = DeepSurfaceVariant.copy(alpha = 0.88f),
@@ -408,7 +416,6 @@ fun CaroLineMainScreen(
                 modifier = Modifier
                     .fillMaxWidth(0.96f)
                     .clickable {
-                        // Tapping bubble interrupts speech
                         if (uiState.liveState == LiveState.SPEAKING) {
                             viewModel.handleUserInterruption()
                         }
@@ -428,7 +435,7 @@ fun CaroLineMainScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Real-time Voice Waveform Equalizer (Inspired by Screen 3 of reference screenshot)
+            // Real-time Voice Waveform Equalizer
             AudioWaveform(
                 liveState = uiState.liveState,
                 amplitude = visualizerAmp,
@@ -443,7 +450,7 @@ fun CaroLineMainScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // --- BOTTOM CONTROL CARD / DRAWER (Inspired by Phone 2 of Reference Screenshot) ---
+            // --- BOTTOM CONTROL CARD / DRAWER ---
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = DeepSurface.copy(alpha = 0.95f),
@@ -457,7 +464,6 @@ fun CaroLineMainScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Avatar Thumbnails Selector (Gothic Cyber, Pink Neon, Classic Anime, Custom Upload)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -472,7 +478,11 @@ fun CaroLineMainScreen(
                         )
 
                         Text(
-                            text = "Tap to switch",
+                            text = when (uiState.activeEngine) {
+                                ActiveEngine.PRIMARY_GEMINI_LIVE -> "GEMINI LIVE 24kHz"
+                                ActiveEngine.BACKUP_SECONDARY_AI -> "BACKUP AI ENGINE"
+                                ActiveEngine.BENGALI_VOICE_ENGINE -> "বাংলা ভয়েস ইঞ্জিন"
+                            },
                             color = CyanAccent,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold
@@ -485,7 +495,6 @@ fun CaroLineMainScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // 1. Gothic Cyber (Phone 1 Avatar)
                         AvatarThumbnailCard(
                             imageRes = R.drawable.caroline_avatar_main,
                             isSelected = uiState.avatarStyle == AvatarStyle.GOTHIC_CYBER,
@@ -494,7 +503,6 @@ fun CaroLineMainScreen(
                             modifier = Modifier.weight(1f)
                         )
 
-                        // 2. Pink Neon (Phone 2 Avatar)
                         AvatarThumbnailCard(
                             imageRes = R.drawable.caroline_ref_avatar,
                             isSelected = uiState.avatarStyle == AvatarStyle.PINK_NEON,
@@ -503,7 +511,6 @@ fun CaroLineMainScreen(
                             modifier = Modifier.weight(1f)
                         )
 
-                        // 3. Classic Anime
                         AvatarThumbnailCard(
                             imageRes = R.drawable.mahi_avatar,
                             isSelected = uiState.avatarStyle == AvatarStyle.CLASSIC_ANIME,
@@ -512,7 +519,6 @@ fun CaroLineMainScreen(
                             modifier = Modifier.weight(1f)
                         )
 
-                        // 4. Custom Uploaded
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = if (uiState.avatarStyle == AvatarStyle.CUSTOM_UPLOADED) CrimsonRed.copy(alpha = 0.2f) else DeepSurfaceVariant,
@@ -564,7 +570,7 @@ fun CaroLineMainScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Expression Selector (Listening, Smiling, Thinking, Speaking, Happy, Surprised)
+                    // Expression Selector
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -572,12 +578,12 @@ fun CaroLineMainScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         listOf(
-                            Pair(AvatarEmotion.LISTENING, "👂 Listen"),
-                            Pair(AvatarEmotion.SMILING, "😊 Smile"),
-                            Pair(AvatarEmotion.THINKING, "🤔 Think"),
-                            Pair(AvatarEmotion.SPEAKING, "🗣️ Speak"),
-                            Pair(AvatarEmotion.HAPPY, "💖 Flirt"),
-                            Pair(AvatarEmotion.SURPRISED, "😲 Wow")
+                            Pair(AvatarEmotion.LISTENING, "👂 শুনছে"),
+                            Pair(AvatarEmotion.SMILING, "😊 হাসি"),
+                            Pair(AvatarEmotion.THINKING, "🤔 চিন্তা"),
+                            Pair(AvatarEmotion.SPEAKING, "🗣️ কথা বলছে"),
+                            Pair(AvatarEmotion.HAPPY, "💖 আনন্দ"),
+                            Pair(AvatarEmotion.SURPRISED, "😲 অবাক")
                         ).forEach { (emotion, label) ->
                             val isSelected = (uiState.manualEmotionOverride ?: uiState.currentEmotion) == emotion
                             Surface(
@@ -610,11 +616,22 @@ fun CaroLineMainScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // --- LARGE PINK/PURPLE GLOWING CALL BUTTON (MATCHING REFERENCE SCREENSHOT) ---
+                    // --- LARGE PINK/PURPLE GLOWING VOICE ACTIVATION BUTTON ---
                     Button(
                         onClick = {
-                            if (!hasRecordPermission) {
-                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            val currentAudioPerm = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+                            hasRecordPermission = currentAudioPerm
+
+                            if (!currentAudioPerm) {
+                                val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    arrayOf(Manifest.permission.RECORD_AUDIO)
+                                }
+                                permissionsLauncher.launch(perms)
                             } else {
                                 viewModel.triggerCallSession()
                             }
@@ -650,38 +667,37 @@ fun CaroLineMainScreen(
                         ) {
                             Icon(
                                 imageVector = if (isCallActive) Icons.Default.CallEnd else Icons.Default.Call,
-                                contentDescription = if (isCallActive) "End Call" else "Start Call",
+                                contentDescription = if (isCallActive) "End Voice Mode" else "Start Voice Mode",
                                 tint = Color.White,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = when (uiState.liveState) {
-                                    LiveState.SPEAKING -> "SPEAKING (TAP TO INTERRUPT)"
-                                    LiveState.LISTENING -> "LIVE CALL ACTIVE • END CALL"
-                                    LiveState.CONNECTING -> "CONNECTING TO CAROLINE..."
-                                    LiveState.THINKING -> "SUMAN BRAIN PROCESSING..."
-                                    LiveState.RECONNECTING -> "RECONNECTING LIVE CALL..."
-                                    LiveState.ERROR -> "RETRY LIVE CALL"
-                                    LiveState.DISCONNECTED -> "START LIVE CALL WITH CAROLINE"
+                                    LiveState.SPEAKING -> "ক্যারোলাইন কথা বলছে • থামাতে ট্যাপ করুন"
+                                    LiveState.LISTENING -> "ভয়েস মোড সচল • বন্ধ করতে ট্যাপ করুন"
+                                    LiveState.CONNECTING -> "ক্যারোলাইনের সাথে সংযোগ হচ্ছে..."
+                                    LiveState.THINKING -> "ক্যারোলাইন উত্তর তৈরি করছে..."
+                                    LiveState.RECONNECTING -> "পুনরায় সংযোগ করা হচ্ছে..."
+                                    LiveState.ERROR -> "পুনরায় ভয়েস মোড চালু করুন"
+                                    LiveState.DISCONNECTED -> "ক্যারোলাইনের সাথে কথা শুরু করুন (VOICE CALL)"
                                 },
                                 color = Color.White,
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
+                                letterSpacing = 0.3.sp
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Secondary Quick Controls: Hands-Free & Mic Mute toggles
+                    // Secondary Quick Controls: Auto-Mic Hands-Free & Mic Mute toggles
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Hands-free toggle chip
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             color = if (uiState.isHandsFreeMode) CyanAccent.copy(alpha = 0.15f) else Color.Transparent,
@@ -697,13 +713,13 @@ fun CaroLineMainScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Hearing,
-                                    contentDescription = "Hands-free",
+                                    contentDescription = "Auto-Mic",
                                     tint = if (uiState.isHandsFreeMode) CyanAccent else TextMuted,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (uiState.isHandsFreeMode) "Hands-Free: ON" else "Hands-Free: OFF",
+                                    text = if (uiState.isHandsFreeMode) "অটো-মাইক: চালু" else "অটো-মাইক: বন্ধ",
                                     color = if (uiState.isHandsFreeMode) CyanAccent else TextMuted,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -711,7 +727,6 @@ fun CaroLineMainScreen(
                             }
                         }
 
-                        // Mute button chip
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             color = if (uiState.isMicMuted) AccentGold.copy(alpha = 0.15f) else Color.Transparent,
@@ -733,7 +748,7 @@ fun CaroLineMainScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (uiState.isMicMuted) "Mic Muted" else "Mic Active",
+                                    text = if (uiState.isMicMuted) "মাইক মিউট" else if (uiState.isMicHardwareVerified) "মাইক্রোফোন সক্রিয়" else "মাইক্রোফোন প্রস্তুত",
                                     color = if (uiState.isMicMuted) AccentGold else TextSecondary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -746,7 +761,7 @@ fun CaroLineMainScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // --- QUICK ACTION SASSY HINGLISH PROMPTS FOR BOSS ---
+            // --- QUICK BENGALI VOICE COMMAND CHIPS ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -786,6 +801,9 @@ fun CaroLineMainScreen(
                 apiMode = uiState.apiMode,
                 selectedVoice = uiState.selectedVoice,
                 isHandsFreeMode = uiState.isHandsFreeMode,
+                isBackgroundServiceEnabled = uiState.isBackgroundServiceEnabled,
+                activeLanguage = uiState.activeLanguage,
+                isLanguageLocked = uiState.isLanguageLocked,
                 avatarMode = AvatarMode.PROCEDURAL_ANIMATED_FACE,
                 toolHistory = uiState.toolHistory,
                 onSavePrimaryApiKey = { newKey -> viewModel.setPrimaryApiKey(newKey) },
@@ -793,6 +811,9 @@ fun CaroLineMainScreen(
                 onChangeApiMode = { mode -> viewModel.setApiMode(mode) },
                 onSelectVoice = { voice -> viewModel.setSelectedVoice(voice) },
                 onToggleHandsFree = { viewModel.toggleHandsFree() },
+                onToggleBackgroundService = { viewModel.toggleBackgroundService() },
+                onChangeLanguageWithPin = { pin, lang -> viewModel.changeLanguageWithPin(pin, lang) },
+                onLockLanguageToBengali = { viewModel.lockLanguageToBengali() },
                 onToggleAvatarMode = { },
                 onDismiss = { showSettings = false }
             )

@@ -18,15 +18,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.Hearing
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,8 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -99,13 +91,13 @@ fun HelpEducationSheet(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "CaroLine AI Academy & Help",
+                            text = "CaroLine AI — GREAT V2.1",
                             color = TextPrimary,
                             fontSize = 19.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Guide & Voice Manual for Boss",
+                            text = "বাংলা ভয়েস কমান্ড গাইড ও নির্দেশিকা",
                             color = CrimsonRedLight,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
@@ -135,7 +127,7 @@ fun HelpEducationSheet(
                 item {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFF1E0A24),
+                        color = DeepSurfaceVariant,
                         border = BorderStroke(1.dp, CrimsonRed.copy(alpha = 0.5f))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -148,7 +140,7 @@ fun HelpEducationSheet(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "System Architecture",
+                                    text = "CaroLine AI • GREAT V2.1",
                                     color = TextPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
@@ -156,7 +148,7 @@ fun HelpEducationSheet(
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "• Assistant: CaroLine AI\n• AI Brain: SUMAN Neural Engine\n• Developer & Owner: Boss\n• Wake Word: \"Hey CaroLine\"\n• Spoken Idiom: Fluid Hindi + English + Hinglish",
+                                text = "• অ্যাপের নাম: CaroLine AI\n• সংস্করণ: GREAT V2.1\n• ডিফল্ট ভাষা: বাংলা (স্থায়ীভাবে লক করা)\n• ওয়েক ওয়ার্ড: \"হ্যালো ক্যারোলাইন\" / \"Hey CaroLine\"\n• কণ্ঠস্বর: স্বাভাবিক বাংলা নারী কণ্ঠস্বর",
                                 color = TextSecondary,
                                 fontSize = 12.sp,
                                 lineHeight = 18.sp
@@ -165,7 +157,7 @@ fun HelpEducationSheet(
                     }
                 }
 
-                // Voice Commands in Hindi & Hinglish
+                // Bengali Voice Commands
                 item {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
@@ -182,7 +174,7 @@ fun HelpEducationSheet(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Spoken Hindi & Hinglish Commands",
+                                    text = "উন্নত বাংলা ভয়েস কমান্ডসমূহ",
                                     color = TextPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
@@ -190,12 +182,13 @@ fun HelpEducationSheet(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             listOf(
-                                Pair("\"Hey CaroLine, YouTube open karo\"", "Launches YouTube instantly"),
-                                Pair("\"Boss ko roast karo\"", "Playful sassy comedy for Boss"),
-                                Pair("\"Flashlight on / off kar do\"", "Controls device camera torch"),
-                                Pair("\"Battery kitni bachi hai?\"", "Checks battery percentage & clock"),
-                                Pair("\"Google par trending search karo\"", "Performs web search for Boss"),
-                                Pair("\"Kya tum mujhse flirt kar rahi ho?\"", "Expressive flirty Hinglish response")
+                                Pair("\"হ্যালো ক্যারোলাইন\"", "ক্যারোলাইনকে জাগিয়ে তোলা এবং কথা শুরু করা"),
+                                Pair("\"ক্যারোলাইন, আমার কথা শোনো\"", "তাৎক্ষণিক মনোযোগ ও ভয়েস লিসেনিং সক্রিয় করা"),
+                                Pair("\"সময় কত?\"", "বর্তমান সময় ও তারিখ বাংলায় বলা"),
+                                Pair("\"আজকের আবহাওয়া বলো\"", "আবহাওয়ার আপডেট বাংলায় শোনানো"),
+                                Pair("\"মোবাইলের ব্যাটারি কত?\"", "ফোনের ব্যাটারি চার্জ কত শতাংশ আছে তা বলা"),
+                                Pair("\"আবার কথা বলো\"", "সর্বশেষ উত্তরটি আবার বাংলায় শোনানো"),
+                                Pair("\"ভয়েস মোড বন্ধ করো\"", "ভয়েস সেশন ও ব্যাকগ্রাউন্ড সার্ভিস বন্ধ করা")
                             ).forEach { (cmd, desc) ->
                                 Row(
                                     modifier = Modifier
@@ -211,7 +204,7 @@ fun HelpEducationSheet(
                                     )
                                     Column {
                                         Text(text = cmd, color = CrimsonRedLight, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                        Text(text = desc, color = TextMuted, fontSize = 10.sp)
+                                        Text(text = desc, color = TextMuted, fontSize = 11.sp)
                                     }
                                 }
                             }
@@ -219,7 +212,7 @@ fun HelpEducationSheet(
                     }
                 }
 
-                // Real-time Voice Features
+                // Real-time Voice & Background Capabilities
                 item {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
@@ -236,7 +229,7 @@ fun HelpEducationSheet(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Real-time Voice Capabilities",
+                                    text = "স্বয়ংক্রিয় মাইক্রোফোন ও ব্যাকগ্রাউন্ড সার্ভিস",
                                     color = TextPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
@@ -244,12 +237,12 @@ fun HelpEducationSheet(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "1. Barge-In Interruption: Boss can speak anytime while CaroLine is talking to immediately interrupt her.\n\n" +
-                                        "2. Hands-Free Continuous Mode: When active, CaroLine automatically listens again after answering without tapping any button.\n\n" +
-                                        "3. Dual API Auto-Failover: If Gemini Live rate-limits, CaroLine smoothly fails over to the backup AI engine.",
+                                text = "১. স্বয়ংক্রিয় মাইক্রোফোন: ভয়েস মোড চালু করলে মাইক্রোফোন স্বয়ংক্রিয়ভাবে আপনার কথা শোনে এবং প্রতিটি উত্তরের পর আবার লিসেনিং মোডে ফিরে আসে।\n\n" +
+                                        "২. বাংলা ভাষা লক: অন্য কেউ অন্য ভাষায় কথা বললেও ক্যারোলাইন বাংলা পরিবর্তন করবে না।\n\n" +
+                                        "৩. অ্যান্ড্রয়েড ফোরগ্রাউন্ড সার্ভিস: অ্যাপ মিনিমাইজ করলেও বা স্ক্রিন লক থাকলেও ব্যাকগ্রাউন্ডে ভয়েস মোড সচল থাকে।",
                                 color = TextSecondary,
                                 fontSize = 12.sp,
-                                lineHeight = 17.sp
+                                lineHeight = 18.sp
                             )
                         }
                     }
