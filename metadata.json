@@ -1,6 +1,6 @@
 {
   "name": "CaroLine AI",
-  "description": "CaroLine AI GREAT V2.1 — Advanced real-time Bengali voice assistant with continuous conversation, animated avatar lip-sync, and foreground voice service.",
+  "description": "CaroLine AI 2.5 Smart JARVIS Edition — Native Android Bengali voice assistant with 3-Provider AI Brain (Gemini, OpenAI, OpenRouter), Smart Mobile Control, Top 50 App Launcher, and Holographic JARVIS HUD.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

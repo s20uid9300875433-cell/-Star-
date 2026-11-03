@@ -3,11 +3,17 @@ package com.example
 import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.live.AiProviderType
 import com.example.live.LiveState
+import com.example.live.MultiAiProviderRouter
+import com.example.live.ProviderConfig
+import com.example.tools.SmartAppLauncher
 import com.example.tools.ToolExecutor
 import com.example.ui.components.AvatarEmotion
 import com.example.ui.components.AvatarStyle
 import com.example.viewmodel.CaroLineViewModel
+import com.example.viewmodel.DashboardTab
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -29,12 +35,36 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `test ToolExecutor getDeviceInfo`() {
+    fun `test ToolExecutor getDeviceInfo and volume control`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val toolExecutor = ToolExecutor(context)
         val result = toolExecutor.execute("getDeviceInfo", emptyMap())
         assertNotNull(result["current_time"])
         assertNotNull(result["device_model"])
+        assertNotNull(result["battery_level"])
+        assertNotNull(result["avail_ram_mb"])
+
+        val volResult = toolExecutor.execute("adjustVolume", mapOf("action" to "up"))
+        assertEquals("success", volResult["status"])
+    }
+
+    @Test
+    fun `test SmartAppLauncher Top 50 catalog`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val launcher = SmartAppLauncher(context)
+        assertEquals(50, SmartAppLauncher.TOP_50_CATALOG.size)
+        val catalog = launcher.getCatalogWithInstalledStatus()
+        assertTrue(catalog.size >= 50)
+    }
+
+    @Test
+    fun `test MultiAiProviderRouter never fakes connection without key`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val router = MultiAiProviderRouter(context)
+        val emptyGemini = ProviderConfig(AiProviderType.GOOGLE_GEMINI, apiKey = "")
+        val testRes = router.testProviderConnection(emptyGemini)
+        assertFalse(testRes.isSuccess)
+        assertTrue(testRes.statusMessage.isNotBlank())
     }
 
     @Test
@@ -67,13 +97,16 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun `test CaroLineViewModel initial GREAT V2_1 Bengali state`() {
+    fun `test CaroLineViewModel initial 2_5 Smart JARVIS Bengali state`() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val viewModel = CaroLineViewModel(app)
         val state = viewModel.uiState.value
-        assertEquals("GREAT V2.1", state.appVersion)
+        assertEquals("2.5 SMART JARVIS", state.appVersion)
+        assertEquals(DashboardTab.JARVIS_HUD, state.activeTab)
+        assertTrue(state.isJarvisCoreMode)
         assertTrue(state.isLanguageLocked)
         assertTrue(state.activeLanguage.contains("বাংলা"))
+        assertEquals(3, state.providerConfigs.size)
         assertEquals(LiveState.DISCONNECTED, state.liveState)
         assertFalse(state.isMicHardwareVerified)
         assertNotNull(state.speechSnippet)

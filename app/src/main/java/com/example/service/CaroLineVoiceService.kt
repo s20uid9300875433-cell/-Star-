@@ -5,8 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
@@ -25,28 +27,35 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Android Foreground Microphone Service for CaroLine AI (GREAT V2.1).
- * Maintains microphone voice session across screen-off and app backgrounding
- * within Android's supported foreground-service restrictions, provides a persistent
- * status notification, and monitors network connectivity for automatic reconnection.
+ * Android Foreground Microphone Service for CaroLine AI 2.5 — Smart JARVIS Edition.
+ * Maintains the microphone voice session across screen-off and app backgrounding
+ * within Android 8–15 foreground-service restrictions, provides a persistent
+ * notification with Start/Resume and Stop controls, and monitors screen & network state.
  */
 class CaroLineVoiceService : Service() {
 
     companion object {
         private const val TAG = "CaroLineVoiceService"
-        const val CHANNEL_ID = "caroline_voice_channel_v21"
-        const val NOTIFICATION_ID = 2101
+        const val CHANNEL_ID = "caroline_voice_channel_v25"
+        const val NOTIFICATION_ID = 2501
 
         const val ACTION_START_SERVICE = "com.example.service.ACTION_START_VOICE_SERVICE"
         const val ACTION_UPDATE_STATUS = "com.example.service.ACTION_UPDATE_STATUS"
+        const val ACTION_RESUME_LISTENING = "com.example.service.ACTION_RESUME_LISTENING"
         const val ACTION_STOP_SERVICE = "com.example.service.ACTION_STOP_VOICE_SERVICE"
         const val EXTRA_STATUS_TEXT = "extra_status_text"
 
         private val _isServiceRunning = MutableStateFlow(false)
         val isServiceRunning = _isServiceRunning.asStateFlow()
 
+        private val _isScreenInteractive = MutableStateFlow(true)
+        val isScreenInteractive = _isScreenInteractive.asStateFlow()
+
         private val _stopRequestedEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         val stopRequestedEvents = _stopRequestedEvents.asSharedFlow()
+
+        private val _resumeRequestedEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        val resumeRequestedEvents = _resumeRequestedEvents.asSharedFlow()
 
         private val _networkRestoredEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         val networkRestoredEvents = _networkRestoredEvents.asSharedFlow()
@@ -81,12 +90,14 @@ class CaroLineVoiceService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var screenStateReceiver: BroadcastReceiver? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         acquireSafeWakeLock()
         registerNetworkMonitor()
+        registerScreenStateMonitor()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -99,8 +110,12 @@ class CaroLineVoiceService : Service() {
             return START_NOT_STICKY
         }
 
+        if (action == ACTION_RESUME_LISTENING) {
+            _resumeRequestedEvents.tryEmit(Unit)
+        }
+
         val statusText = intent?.getStringExtra(EXTRA_STATUS_TEXT)
-            ?: "ক্যারোলাইন আপনার কথা শুনছে... (হ্যালো ক্যারোলাইন বলুন)"
+            ?: "ক্যারোলাইন ২.৫ সক্রিয় — বাংলা ভয়েস কমান্ড শুনছে"
 
         val notification = buildNotification(statusText)
 
@@ -128,6 +143,7 @@ class CaroLineVoiceService : Service() {
 
     override fun onDestroy() {
         _isServiceRunning.value = false
+        unregisterScreenStateMonitor()
         unregisterNetworkMonitor()
         releaseWakeLock()
         super.onDestroy()
@@ -150,7 +166,7 @@ class CaroLineVoiceService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "CaroLine AI Voice Service (GREAT V2.1)",
+                "CaroLine AI 2.5 Smart JARVIS Voice Service",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "অবিচ্ছিন্ন বাংলা ভয়েস অ্যাসিস্ট্যান্ট এবং মাইক্রোফোন স্ট্যাটাস"
@@ -172,18 +188,28 @@ class CaroLineVoiceService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val resumeIntent = Intent(this, CaroLineVoiceService::class.java).apply {
+            action = ACTION_RESUME_LISTENING
+        }
+        val pendingResumeIntent = PendingIntent.getService(
+            this,
+            1,
+            resumeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val stopServiceIntent = Intent(this, CaroLineVoiceService::class.java).apply {
             action = ACTION_STOP_SERVICE
         }
         val pendingStopIntent = PendingIntent.getService(
             this,
-            1,
+            2,
             stopServiceIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("CaroLine AI • GREAT V2.1 (বাংলা)")
+            .setContentTitle("CaroLine AI 2.5 • Smart JARVIS (বাংলা)")
             .setContentText(statusText)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingOpenIntent)
@@ -191,6 +217,11 @@ class CaroLineVoiceService : Service() {
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .addAction(
+                android.R.drawable.ic_btn_speak_now,
+                "আবার শুনুন",
+                pendingResumeIntent
+            )
             .addAction(
                 android.R.drawable.ic_media_pause,
                 "ভয়েস মোড বন্ধ করুন",
@@ -204,11 +235,10 @@ class CaroLineVoiceService : Service() {
             val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
             wakeLock = pm?.newWakeLock(
                 PowerManager.PARTIAL_WAKE_LOCK,
-                "CaroLineAI::VoiceSessionWakeLock"
+                "CaroLineAI::JarvisVoiceWakeLock"
             )?.apply {
                 setReferenceCounted(false)
-                // Acquire for up to 30 minutes per active voice session
-                acquire(30 * 60 * 1000L)
+                acquire(20 * 60 * 1000L)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not acquire WakeLock", e)
@@ -223,6 +253,47 @@ class CaroLineVoiceService : Service() {
             wakeLock = null
         } catch (e: Exception) {
             Log.w(TAG, "Error releasing WakeLock", e)
+        }
+    }
+
+    private fun registerScreenStateMonitor() {
+        try {
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    when (intent?.action) {
+                        Intent.ACTION_SCREEN_OFF -> {
+                            _isScreenInteractive.value = false
+                            Log.d(TAG, "Screen turned OFF — maintaining foreground service within OS limits")
+                        }
+                        Intent.ACTION_SCREEN_ON -> {
+                            _isScreenInteractive.value = true
+                            Log.d(TAG, "Screen turned ON — signaling microphone recovery")
+                            _resumeRequestedEvents.tryEmit(Unit)
+                        }
+                    }
+                }
+            }
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(receiver, filter)
+            }
+            screenStateReceiver = receiver
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not register screen state receiver", e)
+        }
+    }
+
+    private fun unregisterScreenStateMonitor() {
+        try {
+            screenStateReceiver?.let { unregisterReceiver(it) }
+            screenStateReceiver = null
+        } catch (e: Exception) {
+            Log.w(TAG, "Error unregistering screen state receiver", e)
         }
     }
 
