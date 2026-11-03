@@ -48,8 +48,8 @@ data class ToolExecutionEvent(
 
 data class PendingSensitiveAction(
     val id: String = "action_${System.currentTimeMillis()}",
-    val titleBn: String,
-    val descriptionBn: String,
+    val titleBn: String, // Holds confirmation title in English/selected language
+    val descriptionBn: String, // Holds confirmation details
     val toolName: String,
     val args: Map<String, Any?>
 )
@@ -71,39 +71,36 @@ data class BuiltInMusicTrack(
 )
 
 /**
- * Built-in Polyphonic Hindi Melodic Synthesizer Player.
- * Ensures that when the user says "कैरोलाइन गाना चलाओ", "अरिजीत सिंह का गाना चलाओ",
- * "मेरा पसंदीदा गाना चलाओ", "अगला गाना चलाओ", "गाना पॉज करो", or "म्यूजिक बंद करो",
- * real audible music plays and responds to pause/resume/next/stop even if no external
- * third-party streaming app is installed or logged in on the device.
+ * Built-in Polyphonic Melodic Synthesizer Player.
+ * Ensures audible music playback and pause/resume/next/stop controls even when no external streaming player handles the intent.
  */
 class BuiltInHindiMusicPlayer {
     companion object {
         val TRACKS = listOf(
             BuiltInMusicTrack(
                 id = "arijit_romantic",
-                title = "केसरिया & तुम ही हो (Arijit Romantic Acoustic)",
+                title = "Kesariya & Tum Hi Ho (Arijit Romantic Acoustic)",
                 artist = "Arijit Singh Melodies",
                 notesHz = listOf(261.63, 293.66, 329.63, 392.00, 440.00, 392.00, 329.63, 293.66, 261.63, 329.63, 392.00, 523.25),
                 tempoMs = 300L
             ),
             BuiltInMusicTrack(
                 id = "bollywood_lofi",
-                title = "बॉलीवुड लो-फाई चिल (Raataan Lambiyan Vibe)",
+                title = "Bollywood Lo-Fi Chill (Raataan Lambiyan Vibe)",
                 artist = "CaroLine Studio Mix",
                 notesHz = listOf(293.66, 349.23, 440.00, 392.00, 349.23, 329.63, 293.66, 261.63, 349.23, 440.00, 523.25, 440.00),
                 tempoMs = 280L
             ),
             BuiltInMusicTrack(
                 id = "motivational_beats",
-                title = "लक्ष्य & सुल्तान (High Energy Motivation)",
+                title = "Lakshya & Sultan (High Energy Motivation)",
                 artist = "Smart JARVIS Beats",
                 notesHz = listOf(329.63, 329.63, 392.00, 440.00, 493.88, 523.25, 493.88, 440.00, 392.00, 440.00, 523.25, 659.25),
                 tempoMs = 240L
             ),
             BuiltInMusicTrack(
                 id = "classical_flute",
-                title = "शांत बांसुरी धुन (Peaceful Indian Classical)",
+                title = "Peaceful Indian Classical Flute Raga",
                 artist = "Instrumental Raga",
                 notesHz = listOf(261.63, 293.66, 349.23, 392.00, 440.00, 523.25, 440.00, 392.00, 349.23, 293.66),
                 tempoMs = 360L
@@ -127,8 +124,8 @@ class BuiltInHindiMusicPlayer {
     fun playForQuery(query: String): BuiltInMusicTrack {
         val lower = query.lowercase()
         currentTrackIndex = when {
-            lower.contains("अरिजीत") || lower.contains("arijit") || lower.contains("केसरिया") || lower.contains("तुम ही हो") -> 0
-            lower.contains("लो-फाई") || lower.contains("lofi") || lower.contains("पसंदीदा") || lower.contains("favorite") -> 1
+            lower.contains("अरिजीत") || lower.contains("arijit") || lower.contains("केसरिया") || lower.contains("तुम ही हो") || lower.contains("অরিজিৎ") -> 0
+            lower.contains("लो-फाई") || lower.contains("lofi") || lower.contains("पसंदीदा") || lower.contains("favorite") || lower.contains("পছন্দের") -> 1
             lower.contains("मोटिवेशन") || lower.contains("motivation") || lower.contains("workout") -> 2
             lower.contains("शांत") || lower.contains("बांसुरी") || lower.contains("flute") || lower.contains("classical") -> 3
             else -> currentTrackIndex % TRACKS.size
@@ -252,12 +249,15 @@ class BuiltInHindiMusicPlayer {
 }
 
 /**
- * Real Android Command Execution Engine for CaroLine AI 2.9 – Ultimate Smart JARVIS.
- * Pipeline:
- * Speech Recognition → Intent Detection → Command Router → Android Tool Execution → Verify Result → Hindi Voice Response.
+ * Real Android Command Execution Engine for CaroLine AI A3.2 – Ultimate Android Smart JARVIS.
  *
- * Never stops at a search results page when direct playback is requested and supported.
- * Never claims an action succeeded unless verified.
+ * Includes:
+ * - Smart Application Launcher (50+ Catalog + Dynamic PackageManager discovery + Play Store fallback)
+ * - Smart Contact & Phone Call Engine (Name lookup, partial ending digit matching, disambiguation, ACTION_DIAL default)
+ * - Smart Message Writer (Grammar/tone enhancement + WhatsApp/SMS confirmation preview)
+ * - Smart Weather & Internet Engine (Live Open-Meteo HTTPS API + TrafficStats data usage)
+ * - Smart Music & Video Engine (MEDIA_PLAY_FROM_SEARCH, direct YouTube watch links, media keys, built-in synth)
+ * - Smart Mobile Controls (Flashlight, Camera, Wi-Fi, Bluetooth, Brightness settings, Volume, Battery, Maps, Share)
  */
 class ToolExecutor(private val context: Context) {
     companion object {
@@ -269,7 +269,7 @@ class ToolExecutor(private val context: Context) {
                 title = "Neural Networks & AI Technology Explained",
                 channel = "3Blue1Brown Tech",
                 category = "technology",
-                keywords = listOf("technology", "टेक्नोलॉजी", "टेक", "tech", "ai", "एआई", "कंप्यूटर", "coding", "कोडिंग", "science", "साइंस")
+                keywords = listOf("technology", "टेक्नोलॉजी", "टेक", "tech", "ai", "एआई", "कंप्यूटर", "coding", "कोडिंग", "science", "साइंस", "প্রযুক্তি")
             ),
             YouTubeVideoItem(
                 videoId = "JMUxmLyrhSk",
@@ -283,7 +283,7 @@ class ToolExecutor(private val context: Context) {
                 title = "Best Motivational Video — Never Give Up",
                 channel = "Motivation Hub",
                 category = "motivation",
-                keywords = listOf("motivation", "motivational", "मोटिवेशन", "मोटिवेशनल", "प्रेरणा", "सफलता", "success", "study", "पढ़ाई")
+                keywords = listOf("motivation", "motivational", "मोटिवेशन", "मोटिवेशनल", "प्रेरणा", "सफलता", "success", "study", "पढ़ाई", "মোটিভেশন")
             ),
             YouTubeVideoItem(
                 videoId = "mgmVOuLgFB0",
@@ -297,7 +297,7 @@ class ToolExecutor(private val context: Context) {
                 title = "Kesariya — Brahmāstra | Arijit Singh Official Video",
                 channel = "Sony Music India",
                 category = "music",
-                keywords = listOf("arijit", "अरिजीत", "केसरिया", "kesariya", "गाना", "song", "music", "म्यूजिक", "hindi song", "हिंदी गाना")
+                keywords = listOf("arijit", "अरिजीत", "केसरिया", "kesariya", "गाना", "song", "music", "म्यूजिक", "hindi song", "हिंदी गाना", "অরিজিৎ")
             ),
             YouTubeVideoItem(
                 videoId = "IJq0yyWug1k",
@@ -318,23 +318,26 @@ class ToolExecutor(private val context: Context) {
                 title = "Top Science & Space Discoveries Documentary",
                 channel = "Space & Science",
                 category = "science",
-                keywords = listOf("space", "अंतरिक्ष", "विज्ञान", "science", "universe", "ब्रह्मांड")
+                keywords = listOf("space", "अंतरिक्ष", "विज्ञान", "science", "universe", "ब्रह्मांड", "বিজ্ঞান")
             )
         )
     }
 
     val appLauncher = SmartAppLauncher(context)
     val builtInMusicPlayer = BuiltInHindiMusicPlayer()
+    val contactCallEngine = ContactCallEngine(context)
+    val smartMessageWriter = SmartMessageWriter(context)
+    val weatherNetworkEngine = WeatherNetworkEngine(context)
+    val performanceProfileManager = PerformanceProfileManager(context)
 
     private val _toolEvents = MutableSharedFlow<ToolExecutionEvent>(extraBufferCapacity = 20)
     val toolEvents = _toolEvents.asSharedFlow()
 
     private var isTorchOn = false
 
-    // Context Awareness state for Music & Video follow-up commands ("यह वीडियो चलाओ", "अगला वीडियो दिखाओ", "अगला गाना चलाओ")
-    var lastMusicQuery: String = "अरिजीत सिंह"
+    var lastMusicQuery: String = "Arijit Singh"
         private set
-    var lastVideoQuery: String = "टेक्नोलॉजी"
+    var lastVideoQuery: String = "Technology"
         private set
     var activeVideoQueue: List<YouTubeVideoItem> = CURATED_YOUTUBE_VIDEOS
         private set
@@ -345,10 +348,8 @@ class ToolExecutor(private val context: Context) {
 
     var preferredMusicService: String = "Auto (Smart Play)"
     var enableBuiltInMusicFallback: Boolean = true
+    var useDirectCallWhenPermitted: Boolean = false
 
-    /**
-     * Executes a tool by name and arguments map, verifies execution, and returns a result map with authentic Hindi status.
-     */
     fun execute(toolName: String, args: Map<String, Any?>): Map<String, Any?> {
         Log.d(TAG, "Executing tool: $toolName with args: $args")
         return when (toolName) {
@@ -363,6 +364,16 @@ class ToolExecutor(private val context: Context) {
                         isSuccess = result.isLaunched
                     )
                 )
+                val msgBn = if (result.isLaunched) {
+                    "বস, আমি আপনার ফোনে ${result.appName} খুলে দিয়েছি।"
+                } else {
+                    "বস, আপনার ফোনে ${result.appName} ইনস্টল করা নেই। আমি প্লে স্টোর খুলে দিয়েছি।"
+                }
+                val msgEn = if (result.isLaunched) {
+                    "Boss, I have opened ${result.appName} on your phone."
+                } else {
+                    "Boss, ${result.appName} is not installed. I have opened Google Play Store for you."
+                }
                 mapOf(
                     "status" to if (result.isLaunched) "success" else "not_installed",
                     "app_name" to result.appName,
@@ -370,7 +381,8 @@ class ToolExecutor(private val context: Context) {
                     "is_launched" to result.isLaunched,
                     "play_store_offered" to result.playStoreOffered,
                     "message_hi" to result.messageHi,
-                    "message_bn" to result.messageBn
+                    "message_bn" to msgBn,
+                    "message_en" to msgEn
                 )
             }
 
@@ -383,26 +395,32 @@ class ToolExecutor(private val context: Context) {
                 val success = openUrl(url)
                 val summary = if (success) "Opened $url" else "Failed to open $url"
                 _toolEvents.tryEmit(ToolExecutionEvent(toolName, summary, isSuccess = success))
-                val msg = if (success) "बॉस, मैंने ब्राउज़र में वेबसाइट खोल दी है।" else "बॉस, वेबसाइट खुल नहीं सकी।"
+                val msgHi = if (success) "बॉस, मैंने ब्राउज़र में वेबसाइट खोल दी है।" else "बॉस, वेबसाइट खुल नहीं सकी।"
+                val msgBn = if (success) "বস, আমি ব্রাউজারে ওয়েবসাইটটি খুলে দিয়েছি।" else "বস, ওয়েবসাইটটি খোলা যায়নি।"
+                val msgEn = if (success) "Boss, I have opened the website in your browser." else "Boss, the website could not be opened."
                 mapOf(
                     "status" to if (success) "success" else "error",
                     "url" to url,
-                    "message_hi" to msg,
-                    "message_bn" to msg
+                    "message_hi" to msgHi,
+                    "message_bn" to msgBn,
+                    "message_en" to msgEn
                 )
             }
 
             "searchWeb" -> {
-                val query = args["query"]?.toString()?.trim() ?: "आज की ताज़ा खबरें"
+                val query = args["query"]?.toString()?.trim() ?: "latest news"
                 val success = searchGoogle(query)
                 val summary = if (success) "Searched Google for '$query'" else "Search failed for '$query'"
                 _toolEvents.tryEmit(ToolExecutionEvent(toolName, summary, isSuccess = success))
-                val msg = if (success) "बॉस, मैंने गूगल पर '$query' सर्च कर दिया है।" else "बॉस, गूगल सर्च खुल नहीं सका।"
+                val msgHi = if (success) "बॉस, मैंने गूगल पर '$query' सर्च कर दिया है।" else "बॉस, गूगल सर्च खुल नहीं सका।"
+                val msgBn = if (success) "বস, আমি গুগলে '$query' সার্চ করেছি।" else "বস, গুগল সার্চ খোলা যায়নি।"
+                val msgEn = if (success) "Boss, I have searched Google for '$query'." else "Boss, Google search could not be opened."
                 mapOf(
                     "status" to if (success) "success" else "error",
                     "query" to query,
-                    "message_hi" to msg,
-                    "message_bn" to msg
+                    "message_hi" to msgHi,
+                    "message_bn" to msgBn,
+                    "message_en" to msgEn
                 )
             }
 
@@ -410,25 +428,44 @@ class ToolExecutor(private val context: Context) {
                 val success = launchCamera()
                 val summary = if (success) "Opened Camera" else "Camera unavailable"
                 _toolEvents.tryEmit(ToolExecutionEvent(toolName, summary, isSuccess = success))
-                val msg = if (success) "बॉस, कैमरा खोल दिया गया है।" else "बॉस, इस डिवाइस में कैमरा ऐप नहीं खुल सका।"
+                val msgHi = if (success) "बॉस, कैमरा खोल दिया गया है।" else "बॉस, इस डिवाइस में कैमरा ऐप नहीं खुल सका।"
+                val msgBn = if (success) "বস, ক্যামেরা খুলে দেওয়া হয়েছে।" else "বস, ক্যামেরা খোলা যায়নি।"
+                val msgEn = if (success) "Boss, I have opened the camera." else "Boss, the camera app could not be opened."
                 mapOf(
                     "status" to if (success) "success" else "error",
-                    "message_hi" to msg,
-                    "message_bn" to msg
+                    "message_hi" to msgHi,
+                    "message_bn" to msgBn,
+                    "message_en" to msgEn
                 )
             }
 
             "openSystemSettings" -> {
                 val section = args["section"]?.toString()?.lowercase()?.trim().orEmpty()
                 val success = launchSettingsSection(section)
-                val summary = if (success) "Opened Android Settings ($section)" else "Failed to open Settings"
+                val summary = if (success) "Opened Settings ($section)" else "Failed to open Settings"
                 _toolEvents.tryEmit(ToolExecutionEvent(toolName, summary, isSuccess = success))
-                val msg = if (success) "बॉस, फोन की सेटिंग्स खोल दी गई हैं।" else "बॉस, सेटिंग्स स्क्रीन नहीं खुल सकी।"
+                val isBrightness = section.contains("brightness") || section.contains("display") || section.contains("ब्राइटनेस") || section.contains("উজ্জ্বলতা")
+                val msgHi = when {
+                    !success -> "बॉस, सेटिंग्स स्क्रीन नहीं खुल सकी।"
+                    isBrightness -> "बॉस, स्क्रीन ब्राइटनेस और डिस्प्ले सेटिंग्स खोल दी गई हैं।"
+                    else -> "बॉस, फोन की सेटिंग्स खोल दी गई हैं।"
+                }
+                val msgBn = when {
+                    !success -> "বস, সেটিংস খোলা যায়নি।"
+                    isBrightness -> "বস, স্ক্রিন ব্রাইটনেস ও ডিসপ্লে সেটিংস খুলে দেওয়া হয়েছে।"
+                    else -> "বস, ফোনের সেটিংস খুলে দেওয়া হয়েছে।"
+                }
+                val msgEn = when {
+                    !success -> "Boss, could not open Android Settings."
+                    isBrightness -> "Boss, I have opened the screen brightness and display settings."
+                    else -> "Boss, I have opened Android system settings."
+                }
                 mapOf(
                     "status" to if (success) "success" else "error",
                     "section" to section,
-                    "message_hi" to msg,
-                    "message_bn" to msg
+                    "message_hi" to msgHi,
+                    "message_bn" to msgBn,
+                    "message_en" to msgEn
                 )
             }
 
@@ -445,16 +482,27 @@ class ToolExecutor(private val context: Context) {
                     "Flashlight hardware unavailable"
                 }
                 _toolEvents.tryEmit(ToolExecutionEvent(toolName, summary, isSuccess = success))
-                val msg = if (success) {
+                val msgHi = if (success) {
                     if (enabled) "बॉस, फ्लैशलाइट चालू कर दी गई है।" else "बॉस, फ्लैशलाइट बंद कर दी गई है।"
                 } else {
                     "बॉस, इस डिवाइस पर फ्लैशलाइट हार्डवेयर उपलब्ध नहीं है।"
                 }
+                val msgBn = if (success) {
+                    if (enabled) "বস, ফ্ল্যাশলাইট চালু করা হয়েছে।" else "বস, ফ্ল্যাশলাইট বন্ধ করা হয়েছে।"
+                } else {
+                    "বস, এই ডিভাইসে ফ্ল্যাশলাইট হার্ডওয়্যার উপলব্ধ নেই।"
+                }
+                val msgEn = if (success) {
+                    if (enabled) "Boss, the flashlight is now turned on." else "Boss, the flashlight is now turned off."
+                } else {
+                    "Boss, flashlight hardware is unavailable on this device."
+                }
                 mapOf(
                     "status" to if (success) "success" else "error",
                     "flashlight_enabled" to (success && enabled),
-                    "message_hi" to msg,
-                    "message_bn" to msg
+                    "message_hi" to msgHi,
+                    "message_bn" to msgBn,
+                    "message_en" to msgEn
                 )
             }
 
@@ -489,17 +537,21 @@ class ToolExecutor(private val context: Context) {
                         isSuccess = success
                     )
                 )
-                val msg = if (success) "बॉस, शेयर विकल्प खोल दिया गया है।" else "बॉस, शेयर स्क्रीन नहीं खुल सकी।"
+                val msgHi = if (success) "बॉस, शेयर विकल्प खोल दिया गया है।" else "बॉस, शेयर स्क्रीन नहीं खुल सकी।"
+                val msgBn = if (success) "বস, শেয়ার অপশন খুলে দেওয়া হয়েছে।" else "বস, শেয়ার স্ক্রিন খোলা যায়নি।"
+                val msgEn = if (success) "Boss, I have opened the Android share sheet." else "Boss, could not open share options."
                 mapOf(
                     "status" to if (success) "success" else "error",
-                    "message_hi" to msg,
-                    "message_bn" to msg
+                    "message_hi" to msgHi,
+                    "message_bn" to msgBn,
+                    "message_en" to msgEn
                 )
             }
 
             "openDialer" -> {
                 val phone = args["phone"]?.toString()?.trim().orEmpty()
-                val success = openPhoneDialer(phone)
+                val direct = (args["directCall"] as? Boolean) ?: useDirectCallWhenPermitted
+                val success = contactCallEngine.placeCallOrOpenDialer(phone, directCall = direct)
                 _toolEvents.tryEmit(
                     ToolExecutionEvent(
                         toolName = toolName,
@@ -507,12 +559,21 @@ class ToolExecutor(private val context: Context) {
                         isSuccess = success
                     )
                 )
-                val msg = if (success) "बॉस, फोन डायलर खोल दिया गया है।" else "बॉस, डायलर नहीं खुल सका।"
+                val msgHi = if (success) {
+                    if (phone.isNotEmpty()) "बॉस, नंबर $phone फोन डायलर में खोल दिया गया है।" else "बॉस, फोन डायलर खोल दिया गया है।"
+                } else "बॉस, डायलर नहीं खुल सका।"
+                val msgBn = if (success) {
+                    if (phone.isNotEmpty()) "বস, $phone নম্বরটি ডায়ালারে খোলা হয়েছে।" else "বস, ফোন ডায়ালার খোলা হয়েছে।"
+                } else "বস, ডায়ালার খোলা যায়নি।"
+                val msgEn = if (success) {
+                    if (phone.isNotEmpty()) "Boss, I have opened $phone in the phone dialer." else "Boss, I have opened the phone dialer."
+                } else "Boss, could not open the phone dialer."
                 mapOf(
                     "status" to if (success) "success" else "error",
                     "phone" to phone,
-                    "message_hi" to msg,
-                    "message_bn" to msg
+                    "message_hi" to msgHi,
+                    "message_bn" to msgBn,
+                    "message_en" to msgEn
                 )
             }
 
@@ -527,11 +588,14 @@ class ToolExecutor(private val context: Context) {
                         isSuccess = success
                     )
                 )
-                val msg = if (success) "बॉस, मैसेज बॉक्स खोल दिया गया है।" else "बॉस, एसएमएस ऐप नहीं खुल सका।"
+                val msgHi = if (success) "बॉस, मैसेज बॉक्स खोल दिया गया है।" else "बॉस, एसएमएस ऐप नहीं खुल सका।"
+                val msgBn = if (success) "বস, মেসেজ বক্স খুলে দেওয়া হয়েছে।" else "বস, এসএমএস অ্যাপ খোলা যায়নি।"
+                val msgEn = if (success) "Boss, I have opened the SMS composer." else "Boss, could not open the SMS app."
                 mapOf(
                     "status" to if (success) "success" else "error",
-                    "message_hi" to msg,
-                    "message_bn" to msg
+                    "message_hi" to msgHi,
+                    "message_bn" to msgBn,
+                    "message_en" to msgEn
                 )
             }
 
@@ -545,18 +609,21 @@ class ToolExecutor(private val context: Context) {
                         isSuccess = success
                     )
                 )
-                val msg = if (success) "बॉस, गूगल मैप्स में '$destination' का रास्ता खोल दिया गया है।" else "बॉस, मैप्स नहीं खुल सका।"
+                val msgHi = if (success) "बॉस, गूगल मैप्स में '$destination' का रास्ता खोल दिया गया है।" else "बॉस, मैप्स नहीं खुल सका।"
+                val msgBn = if (success) "বস, গুগল ম্যাপে '$destination'-এর রাস্তা খুলে দেওয়া হয়েছে।" else "বস, ম্যাপ খোলা যায়নি।"
+                val msgEn = if (success) "Boss, I have opened navigation to '$destination' in Google Maps." else "Boss, could not open Google Maps."
                 mapOf(
                     "status" to if (success) "success" else "error",
                     "destination" to destination,
-                    "message_hi" to msg,
-                    "message_bn" to msg
+                    "message_hi" to msgHi,
+                    "message_bn" to msgBn,
+                    "message_en" to msgEn
                 )
             }
 
             "playMusic" -> {
                 val rawQuery = args["query"]?.toString()?.trim().orEmpty()
-                val effectiveQuery = rawQuery.ifBlank { lastMusicQuery }.ifBlank { "अरिजीत सिंह" }
+                val effectiveQuery = rawQuery.ifBlank { lastMusicQuery }.ifBlank { "Arijit Singh" }
                 lastMusicQuery = effectiveQuery
                 val musicResult = executeAndVerifyMusicPlayback(effectiveQuery)
                 _toolEvents.tryEmit(
@@ -610,7 +677,8 @@ class ToolExecutor(private val context: Context) {
                     "status" to "success",
                     "message" to "Device vibrated",
                     "message_hi" to "बॉस, हैप्टिक वाइब्रेशन सक्रिय किया गया है।",
-                    "message_bn" to "बॉस, हैप्टिक वाइब्रेशन सक्रिय किया गया है।"
+                    "message_bn" to "বস, হ্যাপটিক ভাইব্রেশন চালু করা হয়েছে।",
+                    "message_en" to "Boss, haptic vibration triggered."
                 )
             }
 
@@ -621,21 +689,12 @@ class ToolExecutor(private val context: Context) {
         }
     }
 
-    /**
-     * Executes Music Playback and verifies whether audio playback actually started.
-     * Supports:
-     * 1. Android MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH for installed music players (Spotify, YT Music, JioSaavn, Wynk, etc.)
-     * 2. Direct Spotify / YouTube Music / System Music Player autoplay deep links + KEYCODE_MEDIA_PLAY dispatch
-     * 3. Built-in Hindi Melodic Synthesizer (`builtInMusicPlayer`) so audible music always starts playing on any device
-     * 4. Verifies playback via AudioManager.isMusicActive or builtInMusicPlayer.isPlaying
-     */
     private fun executeAndVerifyMusicPlayback(query: String): Map<String, Any?> {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         var externalIntentLaunched = false
         var launchedAppName = ""
 
         try {
-            // 1. Check if Spotify or YouTube Music or another music player handles MEDIA_PLAY_FROM_SEARCH
             val playFromSearchIntent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
                 putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
                 putExtra(SearchManager.QUERY, query)
@@ -647,7 +706,6 @@ class ToolExecutor(private val context: Context) {
                 externalIntentLaunched = true
                 launchedAppName = resolvedSearchActivity.packageName
             } else {
-                // 2. Check installed dedicated music apps (Spotify, YouTube Music, JioSaavn, Wynk)
                 val musicPackages = listOf(
                     "com.spotify.music" to "Spotify",
                     "com.google.android.apps.youtube.music" to "YouTube Music",
@@ -683,7 +741,6 @@ class ToolExecutor(private val context: Context) {
                 }
             }
 
-            // Dispatch media play key to start/resume active session
             dispatchMediaKeyCommand("play")
         } catch (e: Exception) {
             Log.w(TAG, "External music player launch notice: ${e.message}")
@@ -691,12 +748,10 @@ class ToolExecutor(private val context: Context) {
 
         val osMusicActive = audioManager?.isMusicActive == true
 
-        // 3. If no external player is actively playing audio, start Built-In Hindi Melodic Player so music genuinely plays!
         val builtInTrack = if (!osMusicActive && enableBuiltInMusicFallback) {
             builtInMusicPlayer.playForQuery(query)
         } else null
 
-        // 4. Also if query specifically mentions a song in our YouTube music catalog and no external music app was found, open direct YouTube music video watch link
         if (!externalIntentLaunched && !osMusicActive && builtInTrack == null) {
             val matchedMusicVideo = resolveMatchingYouTubeVideos(query).firstOrNull()
             if (matchedMusicVideo != null) {
@@ -709,13 +764,35 @@ class ToolExecutor(private val context: Context) {
 
         val hindiMessage = when {
             isVerifiedPlaying && externalIntentLaunched ->
-                "बॉस, '$query' गाना $launchedAppName पर चालू कर दिया गया है और ऑडियो प्लेबैक सक्रिय है।"
+                "बॉस, '$query' गाना $launchedAppName पर चालू कर दिया गया है।"
             isVerifiedPlaying && builtInTrack != null ->
-                "बॉस, '$trackTitle' गाना चालू कर दिया गया है। आप कभी भी 'गाना पॉज करो', 'अगला गाना चलाओ' या 'म्यूजिक बंद करो' कह सकते हैं।"
+                "बॉस, '$trackTitle' गाना चालू कर दिया गया है।"
             externalIntentLaunched ->
-                "बॉस, मैंने $launchedAppName में '$query' गाना खोलकर प्ले कमांड भेज दिया है।"
+                "बॉस, मैंने $launchedAppName में '$query' गाना खोल दिया है।"
             else ->
-                "बॉस, '$query' गाना चलाने की कोशिश की गई, लेकिन कोई म्यूजिक प्लेयर सक्रिय नहीं हो सका।"
+                "बॉस, '$query' गाना चलाने की कोशिश की गई, लेकिन कोई म्यूजिक प्लेयर उपलब्ध नहीं मिला।"
+        }
+
+        val bengaliMessage = when {
+            isVerifiedPlaying && externalIntentLaunched ->
+                "বস, $launchedAppName-এ '$query' গানটি চালু করা হয়েছে।"
+            isVerifiedPlaying && builtInTrack != null ->
+                "বস, '$trackTitle' গানটি চালু করা হয়েছে।"
+            externalIntentLaunched ->
+                "বস, আমি $launchedAppName-এ '$query' গানটি খুলে দিয়েছি।"
+            else ->
+                "বস, কোনো মিউজিক প্লেয়ার সক্রিয় করা যায়নি।"
+        }
+
+        val englishMessage = when {
+            isVerifiedPlaying && externalIntentLaunched ->
+                "Boss, playing '$query' on $launchedAppName."
+            isVerifiedPlaying && builtInTrack != null ->
+                "Boss, playing '$trackTitle' now."
+            externalIntentLaunched ->
+                "Boss, I opened '$query' in $launchedAppName."
+            else ->
+                "Boss, no active music player handled the request."
         }
 
         return mapOf(
@@ -726,15 +803,11 @@ class ToolExecutor(private val context: Context) {
             "external_app_launched" to externalIntentLaunched,
             "summary" to if (isVerifiedPlaying) "Playing: $trackTitle" else "Music opened: $query",
             "message_hi" to hindiMessage,
-            "message_bn" to hindiMessage
+            "message_bn" to bengaliMessage,
+            "message_en" to englishMessage
         )
     }
 
-    /**
-     * Executes Media Playback Controls (pause, resume/play, next, previous, stop)
-     * across both the OS AudioManager media session AND the built-in Hindi music player,
-     * plus advances the video queue when appropriate.
-     */
     private fun executeAndVerifyMediaControl(action: String): Map<String, Any?> {
         val osDispatched = dispatchMediaKeyCommand(action)
         var builtInHandled = false
@@ -770,24 +843,28 @@ class ToolExecutor(private val context: Context) {
 
         val success = osDispatched || builtInHandled
         val hindiMsg = when (action) {
-            "pause" -> "बॉस, गाना पॉज (Pause) कर दिया गया है।"
+            "pause" -> "बॉस, गाना पॉज कर दिया गया है।"
             "stop" -> "बॉस, म्यूजिक बंद कर दिया गया है।"
-            "resume", "play" -> if (trackInfo.isNotEmpty()) {
-                "बॉस, '$trackInfo' गाना फिर से चालू कर दिया गया है।"
-            } else {
-                "बॉस, म्यूजिक फिर से चालू कर दिया गया है।"
-            }
-            "next" -> if (trackInfo.isNotEmpty()) {
-                "बॉस, अगला गाना '$trackInfo' चला दिया गया है।"
-            } else {
-                "बॉस, अगला गाना चला दिया गया है।"
-            }
-            "previous" -> if (trackInfo.isNotEmpty()) {
-                "बॉस, पिछला गाना '$trackInfo' चला दिया गया है।"
-            } else {
-                "बॉस, पिछला गाना चला दिया गया है।"
-            }
+            "resume", "play" -> "बॉस, म्यूजिक फिर से चालू कर दिया गया है।"
+            "next" -> "बॉस, अगला गाना चला दिया गया है।"
+            "previous" -> "बॉस, पिछला गाना चला दिया गया है।"
             else -> "बॉस, मीडिया कमांड पूरा कर दिया गया है।"
+        }
+        val bengaliMsg = when (action) {
+            "pause" -> "বস, গানটি পজ করা হয়েছে।"
+            "stop" -> "বস, মিউজিক বন্ধ করা হয়েছে।"
+            "resume", "play" -> "বস, মিউজিক আবার চালু করা হয়েছে।"
+            "next" -> "বস, পরের গানটি চালানো হয়েছে।"
+            "previous" -> "বস, আগের গানটি চালানো হয়েছে।"
+            else -> "বস, মিডিয়া কমান্ড সম্পন্ন হয়েছে।"
+        }
+        val englishMsg = when (action) {
+            "pause" -> "Boss, music playback has been paused."
+            "stop" -> "Boss, music playback has been stopped."
+            "resume", "play" -> "Boss, music playback resumed."
+            "next" -> "Boss, skipped to the next track."
+            "previous" -> "Boss, returned to the previous track."
+            else -> "Boss, media command completed."
         }
 
         return mapOf(
@@ -796,24 +873,16 @@ class ToolExecutor(private val context: Context) {
             "track_title" to trackInfo,
             "playback_verified" to builtInMusicPlayer.isPlaying.value,
             "message_hi" to hindiMsg,
-            "message_bn" to hindiMsg
+            "message_bn" to bengaliMsg,
+            "message_en" to englishMsg
         )
     }
 
-    /**
-     * Resolves an actual YouTube Video ID and launches the direct video watch player
-     * (`vnd.youtube:<videoId>` or `https://www.youtube.com/watch?v=<videoId>&autoplay=1`)
-     * instead of stopping at a search results page.
-     * Supports follow-up commands:
-     * - "यह वीडियो चलाओ" (`useCurrentQueue = true`)
-     * - "अगला वीडियो दिखाओ" (`playNextInQueue = true`)
-     */
     private fun executeAndVerifyVideoPlayback(
         query: String,
         playNextInQueue: Boolean = false,
         useCurrentQueue: Boolean = false
     ): Map<String, Any?> {
-        // Stop built-in synth music so it doesn't overlap with YouTube video audio
         if (builtInMusicPlayer.isPlaying.value) {
             builtInMusicPlayer.pause()
         }
@@ -830,7 +899,7 @@ class ToolExecutor(private val context: Context) {
                 activeVideoQueue.getOrElse(currentVideoQueueIndex) { lastPlayedVideo }
             }
             else -> {
-                val effectiveTopic = query.ifBlank { lastVideoQuery }.ifBlank { "टेक्नोलॉजी" }
+                val effectiveTopic = query.ifBlank { lastVideoQuery }.ifBlank { "Technology" }
                 lastVideoQuery = effectiveTopic
                 val matchedList = resolveMatchingYouTubeVideos(effectiveTopic)
                 activeVideoQueue = matchedList
@@ -843,18 +912,19 @@ class ToolExecutor(private val context: Context) {
         val directLaunched = openDirectYouTubeVideo(selectedVideo.videoId)
 
         val hindiMsg = if (directLaunched) {
-            if (playNextInQueue) {
-                "बॉस, यूट्यूब पर अगला वीडियो '${selectedVideo.title}' सीधा चला दिया गया है।"
-            } else {
-                "बॉस, यूट्यूब पर '${selectedVideo.title}' वीडियो सीधा चला दिया गया है।"
-            }
+            "बॉस, यूट्यूब पर '${selectedVideo.title}' वीडियो सीधा चला दिया गया है।"
         } else {
-            val fallbackOpened = openUrl("https://www.youtube.com/watch?v=${selectedVideo.videoId}")
-            if (fallbackOpened) {
-                "बॉस, ब्राउज़र में यूट्यूब वीडियो '${selectedVideo.title}' सीधा खोल दिया गया है।"
-            } else {
-                "बॉस, यूट्यूब वीडियो शुरू करने में समस्या आई।"
-            }
+            "बॉस, यूट्यूब वीडियो शुरू करने में समस्या आई।"
+        }
+        val bengaliMsg = if (directLaunched) {
+            "বস, ইউটিউবে '${selectedVideo.title}' ভিডিওটি সরাসরি চালু করা হয়েছে।"
+        } else {
+            "বস, ইউটিউব ভিডিওটি চালু করা যায়নি।"
+        }
+        val englishMsg = if (directLaunched) {
+            "Boss, playing YouTube video '${selectedVideo.title}'."
+        } else {
+            "Boss, could not launch the YouTube video player."
         }
 
         return mapOf(
@@ -865,7 +935,8 @@ class ToolExecutor(private val context: Context) {
             "direct_video_launched" to directLaunched,
             "summary" to "Playing YouTube Video: ${selectedVideo.title}",
             "message_hi" to hindiMsg,
-            "message_bn" to hindiMsg
+            "message_bn" to bengaliMsg,
+            "message_en" to englishMsg
         )
     }
 
@@ -882,7 +953,6 @@ class ToolExecutor(private val context: Context) {
     }
 
     private fun openDirectYouTubeVideo(videoId: String): Boolean {
-        // 1. Try native YouTube app direct video watch intent with fullscreen & autoplay flags
         try {
             val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoId")).apply {
                 putExtra("VIDEO_ID", videoId)
@@ -895,7 +965,6 @@ class ToolExecutor(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        // 2. Launch direct watch URL https://www.youtube.com/watch?v=<videoId> (plays immediately on YouTube app or mobile web)
         return openUrl("https://www.youtube.com/watch?v=$videoId&autoplay=1")
     }
 
@@ -940,16 +1009,16 @@ class ToolExecutor(private val context: Context) {
 
     private fun launchSettingsSection(section: String): Boolean {
         val action = when {
-            section.contains("wifi") || section.contains("वाईफाई") || section.contains("इंटरनेट") ->
+            section.contains("wifi") || section.contains("वाईफाई") || section.contains("इंटरनेट") || section.contains("ওয়াইফাই") ->
                 Settings.ACTION_WIFI_SETTINGS
-            section.contains("bluetooth") || section.contains("ब्लूटूथ") ->
+            section.contains("bluetooth") || section.contains("ब्लूटूथ") || section.contains("ব্লুটুথ") ->
                 Settings.ACTION_BLUETOOTH_SETTINGS
             section.contains("sound") || section.contains("साउंड") || section.contains("आवाज़") || section.contains("वॉल्यूम") ->
                 Settings.ACTION_SOUND_SETTINGS
-            section.contains("display") || section.contains("डिस्प्ले") || section.contains("ब्राइटनेस") ->
+            section.contains("display") || section.contains("brightness") || section.contains("डिस्प्ले") || section.contains("ब्राइटनेस") || section.contains("উজ্জ্বলতা") ->
                 Settings.ACTION_DISPLAY_SETTINGS
-            section.contains("battery") || section.contains("बैटरी") ->
-                Settings.ACTION_BATTERY_SAVER_SETTINGS
+            section.contains("battery") || section.contains("बैटरी") || section.contains("ব্যাটারি") ->
+                Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
             section.contains("location") || section.contains("लोकेशन") ->
                 Settings.ACTION_LOCATION_SOURCE_SETTINGS
             else -> Settings.ACTION_SETTINGS
@@ -960,7 +1029,7 @@ class ToolExecutor(private val context: Context) {
             }
             context.startActivity(intent)
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             try {
                 val fallback = Intent(Settings.ACTION_SETTINGS).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -1000,15 +1069,10 @@ class ToolExecutor(private val context: Context) {
         val isCharging = batteryManager?.isCharging == true
 
         val networkStatus = getNetworkTelemetry()
+        val resSnapshot = performanceProfileManager.inspectDeviceResources()
 
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-        val memInfo = ActivityManager.MemoryInfo()
-        activityManager?.getMemoryInfo(memInfo)
-        val availRamMb = (memInfo.availMem / (1024 * 1024)).toInt()
-        val totalRamMb = (memInfo.totalMem / (1024 * 1024)).toInt()
-
-        val timeFormat = SimpleDateFormat("h:mm a", Locale.forLanguageTag("hi-IN"))
-        val dateFormat = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.forLanguageTag("hi-IN"))
+        val timeFormat = SimpleDateFormat("h:mm a", Locale.US)
+        val dateFormat = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.US)
         val now = Date()
 
         return mapOf(
@@ -1016,8 +1080,9 @@ class ToolExecutor(private val context: Context) {
             "is_charging" to isCharging,
             "is_online" to networkStatus.first,
             "network_type" to networkStatus.second,
-            "avail_ram_mb" to availRamMb,
-            "total_ram_mb" to totalRamMb,
+            "avail_ram_mb" to resSnapshot.availableRamMb,
+            "total_ram_mb" to resSnapshot.totalRamMb,
+            "recommended_profile" to resSnapshot.recommendedProfile.id,
             "current_time" to timeFormat.format(now),
             "current_date" to dateFormat.format(now),
             "device_model" to "${Build.MANUFACTURER} ${Build.MODEL}",
@@ -1049,7 +1114,12 @@ class ToolExecutor(private val context: Context) {
     private fun adjustMediaVolume(direction: String, targetPercent: Int?): Map<String, Any?> {
         return try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                ?: return mapOf("status" to "error", "message_hi" to "ऑडियो मैनेजर उपलब्ध नहीं है।", "message_bn" to "ऑडियो मैनेजर उपलब्ध नहीं है।")
+                ?: return mapOf(
+                    "status" to "error",
+                    "message_hi" to "ऑडियो मैनेजर उपलब्ध नहीं है।",
+                    "message_bn" to "অডিও ম্যানেজার উপলব্ধ নেই।",
+                    "message_en" to "Audio manager is unavailable."
+                )
 
             val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
 
@@ -1059,14 +1129,14 @@ class ToolExecutor(private val context: Context) {
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetIndex, AudioManager.FLAG_SHOW_UI)
             } else {
                 when {
-                    direction.contains("up") || direction.contains("बढ़ाओ") || direction.contains("तेज") || direction.contains("बढाओ") -> {
+                    direction.contains("up") || direction.contains("बढ़ाओ") || direction.contains("तेज") || direction.contains("বাড়াও") -> {
                         audioManager.adjustStreamVolume(
                             AudioManager.STREAM_MUSIC,
                             AudioManager.ADJUST_RAISE,
                             AudioManager.FLAG_SHOW_UI
                         )
                     }
-                    direction.contains("down") || direction.contains("कम") || direction.contains("धीमा") -> {
+                    direction.contains("down") || direction.contains("कम") || direction.contains("धीमा") || direction.contains("কমাও") -> {
                         audioManager.adjustStreamVolume(
                             AudioManager.STREAM_MUSIC,
                             AudioManager.ADJUST_LOWER,
@@ -1099,21 +1169,21 @@ class ToolExecutor(private val context: Context) {
 
             val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
             val pct = ((currentVol.toFloat() / maxVol.toFloat()) * 100).toInt()
-            val msg = "बॉस, फोन की आवाज़ अब $pct प्रतिशत पर सेट कर दी गई है।"
             mapOf(
                 "status" to "success",
                 "volume_percent" to pct,
-                "message_hi" to msg,
-                "message_bn" to msg
+                "message_hi" to "बॉस, फोन की आवाज़ अब $pct प्रतिशत पर सेट कर दी गई है।",
+                "message_bn" to "বস, ফোনের ভলিউম এখন $pct শতাংশে সেট করা হয়েছে।",
+                "message_en" to "Boss, media volume is now set to $pct percent."
             )
         } catch (e: Exception) {
             Log.e(TAG, "Volume adjustment failed", e)
-            val msg = "बॉस, आवाज़ बदलने में समस्या आई।"
             mapOf(
                 "status" to "error",
                 "volume_percent" to 0,
-                "message_hi" to msg,
-                "message_bn" to msg
+                "message_hi" to "बॉस, आवाज़ बदलने में समस्या आई।",
+                "message_bn" to "বস, ভলিউম পরিবর্তন করতে সমস্যা হয়েছে।",
+                "message_en" to "Boss, failed to adjust volume."
             )
         }
     }
@@ -1132,20 +1202,6 @@ class ToolExecutor(private val context: Context) {
             true
         } catch (e: Exception) {
             Log.e(TAG, "Share text failed", e)
-            false
-        }
-    }
-
-    private fun openPhoneDialer(phone: String): Boolean {
-        return try {
-            val uri = if (phone.isNotBlank()) Uri.parse("tel:${Uri.encode(phone)}") else Uri.parse("tel:")
-            val intent = Intent(Intent.ACTION_DIAL, uri).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to open dialer", e)
             false
         }
     }

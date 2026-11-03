@@ -14,11 +14,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Continuous Hindi + Hinglish + English SpeechRecognizer engine for CaroLine AI 2.9 – Ultimate Smart JARVIS.
- * Default language: Hindi (hi-IN).
- * Understands Hindi ("नमस्ते कैरोलाइन", "अरिजीत सिंह का गाना चलाओ", "व्हाट्सएप खोलो"),
- * Hinglish ("Arijit Singh ka gaana chalao", "WhatsApp kholo"), and English ("Open WhatsApp", "Play music").
- * Supports configurable Wake Word detection ("CaroLine", "Hey CaroLine", "कैरोलाइन") and prevents duplicate mic sessions.
+ * Multi-Language SpeechRecognizer engine for CaroLine AI A3.2 – Ultimate Android Smart JARVIS.
+ *
+ * Understands:
+ * - Hindi (`hi-IN`, default)
+ * - Bengali (`bn-IN`, alternative)
+ * - Hinglish & English (`en-IN` / `en-US`, optional)
+ *
+ * Battery & Restart Fix (Requirement N):
+ * - Prevents duplicate recognizer instances or audio session conflicts.
+ * - Uses exponential backoff and caps consecutive timeouts/no-match errors so the microphone
+ *   never loops infinitely in the background or drains the battery.
  */
 class BengaliSpeechRecognizer(
     private val context: Context,
@@ -31,6 +37,8 @@ class BengaliSpeechRecognizer(
 ) {
     companion object {
         private const val TAG = "CaroLineSpeechRec"
+        private const val MAX_CONSECUTIVE_EMPTY_CYCLES = 5
+
         val DEFAULT_WAKE_WORDS = listOf(
             "caroline",
             "hey caroline",
@@ -38,13 +46,16 @@ class BengaliSpeechRecognizer(
             "कैरोलाइन",
             "हे कैरोलाइन",
             "नमस्ते कैरोलाइन",
-            "हेलो कैरोलाइन"
+            "हेलो कैरोलाइन",
+            "ক্যারোলাইন",
+            "হ্যালো ক্যারোলাইন"
         )
     }
 
     private val mainScope = CoroutineScope(Dispatchers.Main)
     private var speechRecognizer: SpeechRecognizer? = null
     private var restartJob: Job? = null
+    private var consecutiveErrorCount: Int = 0
 
     @Volatile
     private var isContinuousModeEnabled = false
@@ -55,7 +66,7 @@ class BengaliSpeechRecognizer(
     @Volatile
     private var isCurrentlyListening = false
 
-    // Default to Hindi (India) for CaroLine 2.9
+    // Default to Hindi (India) for CaroLine A3.2; updated when user selects Bengali or English
     var preferredLanguageCode: String = "hi-IN"
     var isWakeWordEnabled: Boolean = true
     var configuredWakeWord: String = "Hey CaroLine"
@@ -63,7 +74,7 @@ class BengaliSpeechRecognizer(
     fun isAvailable(): Boolean {
         return try {
             SpeechRecognizer.isRecognitionAvailable(context)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -71,6 +82,7 @@ class BengaliSpeechRecognizer(
     fun startContinuousListening() {
         isContinuousModeEnabled = true
         isPausedForPlayback = false
+        consecutiveErrorCount = 0
         mainScope.launch {
             initAndStartInternal()
         }
@@ -93,9 +105,10 @@ class BengaliSpeechRecognizer(
     fun resumeAfterAiSpeech() {
         if (!isContinuousModeEnabled) return
         isPausedForPlayback = false
+        consecutiveErrorCount = 0
         restartJob?.cancel()
         restartJob = mainScope.launch {
-            delay(250)
+            delay(300)
             if (isContinuousModeEnabled && !isPausedForPlayback && !isCurrentlyListening) {
                 initAndStartInternal()
             }
@@ -105,6 +118,7 @@ class BengaliSpeechRecognizer(
     fun stopListening() {
         isContinuousModeEnabled = false
         isPausedForPlayback = false
+        consecutiveErrorCount = 0
         restartJob?.cancel()
         mainScope.launch {
             try {
@@ -138,8 +152,8 @@ class BengaliSpeechRecognizer(
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 4)
                 putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1100L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 950L)
             }
 
             speechRecognizer?.startListening(intent)
@@ -149,15 +163,26 @@ class BengaliSpeechRecognizer(
             Log.e(TAG, "Failed to start SpeechRecognizer", e)
             isCurrentlyListening = false
             onListeningStateChanged(false)
-            onErrorDiagnostic("वॉइस रिकग्निशन शुरू करने में समस्या हुई: ${e.localizedMessage ?: "Unknown"}")
+            onErrorDiagnostic("Speech recognition error: ${e.localizedMessage ?: "Unavailable"}")
         }
     }
 
-    private fun scheduleRestart(delayMs: Long = 320L) {
+    private fun scheduleRestart(baseDelayMs: Long = 450L) {
         if (!isContinuousModeEnabled || isPausedForPlayback) return
+        consecutiveErrorCount++
+        if (consecutiveErrorCount > MAX_CONSECUTIVE_EMPTY_CYCLES) {
+            // Pause aggressive loop to save battery and prevent repeated system beeps
+            isContinuousModeEnabled = false
+            isCurrentlyListening = false
+            onListeningStateChanged(false)
+            Log.i(TAG, "Paused continuous listening after $consecutiveErrorCount silent cycles to save battery.")
+            return
+        }
+
+        val backoffDelay = (baseDelayMs * consecutiveErrorCount).coerceIn(400L, 2800L)
         restartJob?.cancel()
         restartJob = mainScope.launch {
-            delay(delayMs)
+            delay(backoffDelay)
             if (isContinuousModeEnabled && !isPausedForPlayback && !isCurrentlyListening) {
                 initAndStartInternal()
             }
@@ -180,6 +205,7 @@ class BengaliSpeechRecognizer(
             }
 
             override fun onBeginningOfSpeech() {
+                consecutiveErrorCount = 0
                 onRmsAmplitude(0.35f, true)
             }
 
@@ -202,51 +228,53 @@ class BengaliSpeechRecognizer(
                 when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH,
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                        scheduleRestart(240L)
+                        scheduleRestart(450L)
                     }
                     SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
-                        scheduleRestart(550L)
+                        scheduleRestart(900L)
                     }
                     SpeechRecognizer.ERROR_CLIENT -> {
                         try {
                             speechRecognizer?.destroy()
                         } catch (_: Exception) {}
                         speechRecognizer = null
-                        scheduleRestart(400L)
+                        scheduleRestart(650L)
                     }
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
+                        isContinuousModeEnabled = false
                         onListeningStateChanged(false)
-                        onErrorDiagnostic("माइक्रोफ़ोन अनुमति आवश्यक है (Microphone permission required)।")
+                        onErrorDiagnostic("Microphone permission is required for voice commands.")
                     }
                     SpeechRecognizer.ERROR_NETWORK,
                     SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> {
-                        scheduleRestart(1100L)
+                        scheduleRestart(1400L)
                     }
                     else -> {
                         try {
                             speechRecognizer?.destroy()
                         } catch (_: Exception) {}
                         speechRecognizer = null
-                        scheduleRestart(750L)
+                        scheduleRestart(950L)
                     }
                 }
             }
 
             override fun onResults(results: Bundle?) {
                 isCurrentlyListening = false
+                consecutiveErrorCount = 0
                 onRmsAmplitude(0f, false)
 
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val bestText = matches?.firstOrNull()?.trim().orEmpty()
 
                 if (bestText.isNotEmpty()) {
-                    Log.d(TAG, "Recognized Hindi/Hinglish voice command: $bestText")
+                    Log.d(TAG, "Recognized voice command ($preferredLanguageCode): $bestText")
                     if (checkWakeWord(bestText)) {
                         onWakeWordDetected?.invoke(bestText)
                     }
                     onFinalTranscript(bestText)
                 } else {
-                    scheduleRestart(240L)
+                    scheduleRestart(450L)
                 }
             }
 

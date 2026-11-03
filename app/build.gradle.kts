@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.applet.spfqzi"
     minSdk = 26
     targetSdk = 36
-    versionCode = 3
-    versionName = "2.9"
+    versionCode = 4
+    versionName = "A3.2"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

@@ -10,10 +10,13 @@ import com.example.BuildConfig
 import com.example.audio.AudioPlayer
 import com.example.audio.AudioStreamer
 import com.example.audio.BengaliSpeechRecognizer
+import com.example.live.AdaptiveAiManager
+import com.example.live.AdaptiveAiSnapshot
 import com.example.live.AiProviderType
 import com.example.live.CaroLineBrainEngine
 import com.example.live.ConversationMessage
 import com.example.live.DailyReminderItem
+import com.example.live.DeviceVoiceInfo
 import com.example.live.GeminiLiveSession
 import com.example.live.LiveSessionListener
 import com.example.live.LiveState
@@ -22,9 +25,15 @@ import com.example.live.ProviderConfig
 import com.example.live.ProviderTestResult
 import com.example.live.SmartMemoryItem
 import com.example.live.SmartRoutineItem
+import com.example.live.TtsEngineInfo
 import com.example.service.CaroLineVoiceService
 import com.example.tools.AppEntry
+import com.example.tools.DeviceContactItem
+import com.example.tools.LiveWeatherReport
+import com.example.tools.MessageDraftPreview
+import com.example.tools.NetworkAndDataReport
 import com.example.tools.PendingSensitiveAction
+import com.example.tools.PerformanceProfile
 import com.example.tools.ToolExecutionEvent
 import com.example.tools.ToolExecutor
 import com.example.ui.components.AvatarEmotion
@@ -50,7 +59,7 @@ enum class ApiMode {
 enum class ActiveEngine {
     PRIMARY_GEMINI_LIVE,
     BACKUP_SECONDARY_AI,
-    BENGALI_VOICE_ENGINE // Represents Local Hindi Voice Engine in 2.9
+    BENGALI_VOICE_ENGINE
 }
 
 enum class AvatarMode {
@@ -65,9 +74,9 @@ enum class DashboardTab {
 }
 
 data class CaroLineUiState(
-    val appVersion: String = "2.9 ULTIMATE JARVIS",
+    val appVersion: String = "A3.2 ULTIMATE JARVIS",
     val activeTab: DashboardTab = DashboardTab.JARVIS_HUD,
-    val isJarvisCoreMode: Boolean = false, // Defaults to Anime-JARVIS Avatar + AI Ring on Home Screen
+    val isJarvisCoreMode: Boolean = false,
     val liveState: LiveState = LiveState.DISCONNECTED,
     val isMicMuted: Boolean = false,
     val isHandsFreeMode: Boolean = true,
@@ -75,9 +84,15 @@ data class CaroLineUiState(
     val speechSnippet: String = CaroLineBrainEngine.DEFAULT_GREETING_HI,
     val activeToolEvent: ToolExecutionEvent? = null,
     val toolHistory: List<ToolExecutionEvent> = emptyList(),
-    // Three AI Brain System
+    // Requirement A: Performance Profiles (2GB Lite, 4GB Standard, 6GB+ Advanced)
+    val performanceProfile: PerformanceProfile = PerformanceProfile.STANDARD_MODE,
+    val isAutoPerformanceProfile: Boolean = true,
+    val totalRamMb: Int = 4096,
+    val availRamMb: Int = 2048,
+    // Requirement D: Managed AI Brain (No manual API key required)
     val selectedAiProvider: AiProviderType = AiProviderType.GOOGLE_GEMINI,
     val autoFailoverEnabled: Boolean = true,
+    val isManagedCloudConfigured: Boolean = true,
     val providerConfigs: Map<AiProviderType, ProviderConfig> = mapOf(
         AiProviderType.GOOGLE_GEMINI to ProviderConfig(AiProviderType.GOOGLE_GEMINI),
         AiProviderType.OPENAI_CHATGPT to ProviderConfig(AiProviderType.OPENAI_CHATGPT),
@@ -85,7 +100,7 @@ data class CaroLineUiState(
     ),
     val providerTestResults: Map<AiProviderType, ProviderTestResult> = emptyMap(),
     val testingProvider: AiProviderType? = null,
-    val activeProviderBadge: String = "GEMINI • JARVIS 2.9",
+    val activeProviderBadge: String = "MANAGED AI • A3.2",
     // Legacy compatibility fields
     val primaryApiKey: String = "",
     val backupApiKey: String = "",
@@ -96,30 +111,49 @@ data class CaroLineUiState(
         ConversationMessage(
             role = "assistant",
             text = CaroLineBrainEngine.DEFAULT_GREETING_HI,
-            providerBadge = "CAROLINE 2.9"
+            providerBadge = "CAROLINE A3.2"
         )
     ),
-    // Top 50 & Installed App Launcher
+    // Requirement I: Top 50 & Dynamic Installed App Launcher
     val appCatalog: List<AppEntry> = emptyList(),
     val appSearchQuery: String = "",
+    // Requirement E: Smart Contact & Phone Call Engine state
+    val matchedContacts: List<DeviceContactItem> = emptyList(),
+    val contactSearchTitle: String = "",
+    val useDirectCallWhenPermitted: Boolean = false,
+    // Requirement G: Smart Message Writer state
+    val pendingMessageDraft: MessageDraftPreview? = null,
     // Pending Sensitive Action Confirmation
     val pendingSensitiveAction: PendingSensitiveAction? = null,
+    // Requirement K: Live Weather & Network Data Usage state
+    val latestWeatherReport: LiveWeatherReport? = null,
+    val networkAndDataReport: NetworkAndDataReport? = null,
+    // Requirement F: Floating CaroLine Window state
+    val isFloatingBubbleEnabled: Boolean = true,
+    val isFloatingWindowExpanded: Boolean = false,
+    val canDrawSystemOverlays: Boolean = false,
+    // Requirement L: Adaptive AI Engine (20–30 min periodic refresh)
+    val adaptiveAiSnapshot: AdaptiveAiSnapshot = AdaptiveAiSnapshot(),
     // Device Telemetry
     val batteryLevel: Int = 100,
     val isCharging: Boolean = false,
     val isOnline: Boolean = true,
     val networkType: String = "Wi-Fi",
-    val availRamMb: Int = 2048,
-    // Advanced Female Voice Engine & Hindi Default Lock
-    val selectedVoice: String = "Swara (Hindi Female)",
+    // Requirement B & C: Spoken Language (Hindi default, Bengali, English) & Real Female Voice Studio
+    val spokenLanguageCode: String = "hi-IN",
+    val activeLanguage: String = "Hindi (हिन्दी)",
+    val isLanguageLocked: Boolean = true,
+    val languageLockPin: String = "1234",
+    val installedTtsEngines: List<TtsEngineInfo> = emptyList(),
+    val availableDeviceVoices: List<DeviceVoiceInfo> = emptyList(),
+    val selectedTtsEnginePackage: String = "",
+    val selectedVoiceId: String = "system_locale_hi-IN",
+    val selectedVoice: String = "System Default Hindi (hi-IN)",
     val voicePitch: Float = 1.08f,
     val voiceSpeed: Float = 1.0f,
     val isVoiceMuted: Boolean = false,
     val useOpenAiTts: Boolean = false,
     val openAiTtsVoice: String = "nova",
-    val activeLanguage: String = "हिन्दी (Hindi)",
-    val isLanguageLocked: Boolean = true,
-    val languageLockPin: String = "1234",
     // Smart Wake Word Settings
     val isWakeWordEnabled: Boolean = true,
     val wakeWordPhrase: String = "Hey CaroLine",
@@ -127,7 +161,7 @@ data class CaroLineUiState(
     val preferredMusicService: String = "Auto (Smart Play)",
     val enableBuiltInMusicFallback: Boolean = true,
     val isMusicPlaying: Boolean = false,
-    // Top 5 Smart Features State
+    // Smart Memory, Reminders & Routines
     val smartMemories: List<SmartMemoryItem> = emptyList(),
     val dailyReminders: List<DailyReminderItem> = emptyList(),
     val smartRoutines: List<SmartRoutineItem> = CaroLineBrainEngine.DEFAULT_SMART_ROUTINES,
@@ -167,6 +201,8 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         private const val KEY_JARVIS_CORE_MODE = "jarvis_core_mode_v29"
         private const val KEY_API_MODE = "api_failover_mode"
         private const val KEY_VOICE = "female_voice_profile"
+        private const val KEY_VOICE_ID = "female_device_voice_id_a32"
+        private const val KEY_TTS_ENGINE_PKG = "tts_engine_package_a32"
         private const val KEY_VOICE_PITCH = "female_voice_pitch"
         private const val KEY_VOICE_SPEED = "female_voice_speed"
         private const val KEY_VOICE_MUTED = "female_voice_muted"
@@ -175,10 +211,14 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         private const val KEY_HANDS_FREE = "hands_free_mode"
         private const val KEY_AVATAR_STYLE = "avatar_style_name"
         private const val KEY_CUSTOM_URI = "custom_avatar_uri"
+        private const val KEY_SPOKEN_LANG_CODE = "spoken_language_code_a32"
         private const val KEY_LANGUAGE_LOCKED = "hindi_language_locked"
         private const val KEY_LANGUAGE_PIN = "owner_language_pin"
         private const val KEY_ACTIVE_LANGUAGE = "active_language_display_v29"
         private const val KEY_BG_SERVICE_ENABLED = "background_service_enabled"
+        private const val KEY_FLOATING_BUBBLE_ENABLED = "floating_bubble_enabled_a32"
+        private const val KEY_PERF_PROFILE_ID = "performance_profile_id_a32"
+        private const val KEY_AUTO_PERF_PROFILE = "auto_performance_profile_a32"
         private const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
         private const val KEY_WAKE_WORD_PHRASE = "wake_word_phrase"
         private const val KEY_PREF_MUSIC_SERVICE = "preferred_music_service"
@@ -191,6 +231,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
 
     val toolExecutor = ToolExecutor(appContext)
     private val aiRouter = MultiAiProviderRouter(appContext)
+    private val adaptiveAiManager = AdaptiveAiManager(appContext)
 
     private var hasSpokenInitialGreetingInSession = false
 
@@ -247,7 +288,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
             }
         },
         onFinalTranscript = { recognizedText ->
-            handleRecognizedHindiSpeech(recognizedText)
+            handleRecognizedSpeech(recognizedText)
         },
         onRmsAmplitude = { rmsNormalized, voiceDetected ->
             audioStreamer.updateExternalAmplitude(rmsNormalized, voiceDetected)
@@ -263,9 +304,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
             }
         },
         onErrorDiagnostic = { notice ->
-            _uiState.value = _uiState.value.copy(
-                errorMessage = notice
-            )
+            _uiState.value = _uiState.value.copy(errorMessage = notice)
         }
     )
 
@@ -286,6 +325,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         },
         onSpeechSnippet = { text ->
             _uiState.value = _uiState.value.copy(speechSnippet = text)
+            CaroLineVoiceService.updateFloatingSnippet(text)
         },
         onSpeakingFinished = {
             if (_uiState.value.liveState != LiveState.DISCONNECTED) {
@@ -293,7 +333,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
                     liveState = LiveState.LISTENING,
                     currentEmotion = AvatarEmotion.LISTENING
                 )
-                if (_uiState.value.isHandsFreeMode) {
+                if (_uiState.value.isHandsFreeMode && _uiState.value.isScreenInteractive) {
                     hindiSpeechRecognizer.resumeAfterAiSpeech()
                     ensureContinuousListeningActive()
                 }
@@ -313,6 +353,24 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         },
         onRemindersUpdated = { reminders ->
             _uiState.value = _uiState.value.copy(dailyReminders = reminders)
+        },
+        onContactMatchesUpdated = { matches, title ->
+            _uiState.value = _uiState.value.copy(
+                matchedContacts = matches,
+                contactSearchTitle = title
+            )
+        },
+        onMessageDraftUpdated = { draft ->
+            _uiState.value = _uiState.value.copy(pendingMessageDraft = draft)
+        },
+        onWeatherReportUpdated = { weather ->
+            _uiState.value = _uiState.value.copy(latestWeatherReport = weather)
+        },
+        onVoiceStudioCatalogUpdated = { engines, voices ->
+            _uiState.value = _uiState.value.copy(
+                installedTtsEngines = engines,
+                availableDeviceVoices = voices
+            )
         }
     )
 
@@ -338,8 +396,18 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
     private var bargeInMonitorJob: Job? = null
 
     init {
-        // NOTE: Requirement 1 — When the app starts, do NOT automatically speak three welcome or promotional sentences.
-        // We initialize state silently and speak ONLY one short greeting when the user first activates the assistant.
+        brainEngine.adaptiveAiManager = adaptiveAiManager
+
+        // Requirement A: Inspect device RAM and select appropriate performance profile
+        val resourceSnapshot = toolExecutor.performanceProfileManager.inspectDeviceResources()
+        val isAutoPerf = sharedPrefs.getBoolean(KEY_AUTO_PERF_PROFILE, true)
+        val savedProfileId = sharedPrefs.getString(KEY_PERF_PROFILE_ID, null)
+        val effectiveProfile = if (isAutoPerf) {
+            resourceSnapshot.recommendedProfile
+        } else {
+            PerformanceProfile.fromId(savedProfileId) ?: resourceSnapshot.recommendedProfile
+        }
+
         val buildGeminiKey = readBuildConfigSecret("GEMINI_API_KEY", "MY_GEMINI_API_KEY")
         val buildOpenAiKey = readBuildConfigSecret("OPENAI_API_KEY", "MY_OPENAI_API_KEY")
         val buildOpenRouterKey = readBuildConfigSecret("OPENROUTER_API_KEY", "MY_OPENROUTER_API_KEY")
@@ -356,7 +424,6 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
             modelName = sharedPrefs.getString(KEY_GEMINI_MODEL, AiProviderType.GOOGLE_GEMINI.defaultModel)
                 ?: AiProviderType.GOOGLE_GEMINI.defaultModel
         )
-
         val openAiConfig = ProviderConfig(
             providerType = AiProviderType.OPENAI_CHATGPT,
             apiKey = savedOpenAiKey,
@@ -365,7 +432,6 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
             modelName = sharedPrefs.getString(KEY_OPENAI_MODEL, AiProviderType.OPENAI_CHATGPT.defaultModel)
                 ?: AiProviderType.OPENAI_CHATGPT.defaultModel
         )
-
         val openRouterConfig = ProviderConfig(
             providerType = AiProviderType.OPENROUTER_CUSTOM,
             apiKey = savedOpenRouterKey,
@@ -375,62 +441,45 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
                 ?: AiProviderType.OPENROUTER_CUSTOM.defaultModel
         )
 
-        val savedProviderStr = sharedPrefs.getString(KEY_SELECTED_PROVIDER, AiProviderType.GOOGLE_GEMINI.name)
-            ?: AiProviderType.GOOGLE_GEMINI.name
-        val selectedProvider = try {
-            AiProviderType.valueOf(savedProviderStr)
-        } catch (_: Exception) {
-            AiProviderType.GOOGLE_GEMINI
+        val savedSpokenLangCode = sharedPrefs.getString(KEY_SPOKEN_LANG_CODE, "hi-IN") ?: "hi-IN"
+        val displayLang = when {
+            savedSpokenLangCode.startsWith("bn") -> "Bengali (বাংলা)"
+            savedSpokenLangCode.startsWith("en") -> "English (en-IN)"
+            else -> "Hindi (हिन्दी)"
         }
 
-        val savedAutoFailover = sharedPrefs.getBoolean(KEY_AUTO_FAILOVER, true)
-        val savedJarvisCoreMode = sharedPrefs.getBoolean(KEY_JARVIS_CORE_MODE, false)
-
-        val savedModeStr = sharedPrefs.getString(KEY_API_MODE, ApiMode.AUTO_FAILOVER.name) ?: ApiMode.AUTO_FAILOVER.name
-        val savedMode = try { ApiMode.valueOf(savedModeStr) } catch (_: Exception) { ApiMode.AUTO_FAILOVER }
-
-        val savedVoice = sharedPrefs.getString(KEY_VOICE, "Swara (Hindi Female)") ?: "Swara (Hindi Female)"
+        val savedVoice = sharedPrefs.getString(KEY_VOICE, "System Default Hindi (hi-IN)") ?: "System Default Hindi (hi-IN)"
+        val savedVoiceId = sharedPrefs.getString(KEY_VOICE_ID, "system_locale_hi-IN") ?: "system_locale_hi-IN"
+        val savedEnginePkg = sharedPrefs.getString(KEY_TTS_ENGINE_PKG, "") ?: ""
         val savedPitch = sharedPrefs.getFloat(KEY_VOICE_PITCH, 1.08f)
         val savedSpeed = sharedPrefs.getFloat(KEY_VOICE_SPEED, 1.0f)
         val savedVoiceMuted = sharedPrefs.getBoolean(KEY_VOICE_MUTED, false)
-        val savedUseOpenAiTts = sharedPrefs.getBoolean(KEY_USE_OPENAI_TTS, false)
-        val savedOpenAiTtsVoice = sharedPrefs.getString(KEY_OPENAI_TTS_VOICE, "nova") ?: "nova"
-
         val savedHandsFree = sharedPrefs.getBoolean(KEY_HANDS_FREE, true)
-
-        val savedStyleStr = sharedPrefs.getString(KEY_AVATAR_STYLE, AvatarStyle.GOTHIC_CYBER.name) ?: AvatarStyle.GOTHIC_CYBER.name
-        val savedStyle = try { AvatarStyle.valueOf(savedStyleStr) } catch (_: Exception) { AvatarStyle.GOTHIC_CYBER }
-
-        val customUriStr = sharedPrefs.getString(KEY_CUSTOM_URI, null)
-        val customUri = if (customUriStr != null) try { Uri.parse(customUriStr) } catch (_: Exception) { null } else null
-
-        val savedLanguageLocked = sharedPrefs.getBoolean(KEY_LANGUAGE_LOCKED, true)
-        val savedPin = sharedPrefs.getString(KEY_LANGUAGE_PIN, "1234") ?: "1234"
-        val savedLanguage = if (savedLanguageLocked) {
-            "हिन्दी (Hindi)"
-        } else {
-            sharedPrefs.getString(KEY_ACTIVE_LANGUAGE, "हिन्दी (Hindi)") ?: "हिन्दी (Hindi)"
-        }
+        val savedFloatingBubble = sharedPrefs.getBoolean(KEY_FLOATING_BUBBLE_ENABLED, true)
         val savedBgService = sharedPrefs.getBoolean(KEY_BG_SERVICE_ENABLED, true)
         val savedWakeWordEnabled = sharedPrefs.getBoolean(KEY_WAKE_WORD_ENABLED, true)
         val savedWakeWordPhrase = sharedPrefs.getString(KEY_WAKE_WORD_PHRASE, "Hey CaroLine") ?: "Hey CaroLine"
         val savedMusicService = sharedPrefs.getString(KEY_PREF_MUSIC_SERVICE, "Auto (Smart Play)") ?: "Auto (Smart Play)"
         val savedBuiltInMusic = sharedPrefs.getBoolean(KEY_BUILTIN_MUSIC_FALLBACK, true)
         val savedTheme = sharedPrefs.getString(KEY_SELECTED_THEME, "Anime-JARVIS Gold & Cyan") ?: "Anime-JARVIS Gold & Cyan"
+        val savedJarvisCoreMode = sharedPrefs.getBoolean(KEY_JARVIS_CORE_MODE, false)
 
-        brainEngine.isLanguageLockedToBengali = savedLanguageLocked
-        brainEngine.ownerLanguagePin = savedPin
+        val savedStyleStr = sharedPrefs.getString(KEY_AVATAR_STYLE, AvatarStyle.GOTHIC_CYBER.name) ?: AvatarStyle.GOTHIC_CYBER.name
+        val savedStyle = try { AvatarStyle.valueOf(savedStyleStr) } catch (_: Exception) { AvatarStyle.GOTHIC_CYBER }
+        val customUriStr = sharedPrefs.getString(KEY_CUSTOM_URI, null)
+        val customUri = if (customUriStr != null) try { Uri.parse(customUriStr) } catch (_: Exception) { null } else null
+
+        brainEngine.spokenLanguageCode = savedSpokenLangCode
         brainEngine.voicePitch = savedPitch
         brainEngine.voiceSpeed = savedSpeed
         brainEngine.isVoiceMuted = savedVoiceMuted
+        brainEngine.selectedVoiceId = savedVoiceId
         brainEngine.selectedFemaleVoiceProfile = savedVoice
-        brainEngine.useOpenAiNeuralTts = savedUseOpenAiTts
-        brainEngine.openAiTtsVoiceName = savedOpenAiTtsVoice
-        brainEngine.openAiSpeechSynthesizer = { text, voice, speed ->
-            val openAiKey = _uiState.value.providerConfigs[AiProviderType.OPENAI_CHATGPT]?.apiKey.orEmpty()
-            aiRouter.generateOpenAiSpeechMp3(openAiKey, text, voice, speed)
+        if (savedEnginePkg.isNotBlank()) {
+            brainEngine.selectTtsEngine(savedEnginePkg)
         }
 
+        hindiSpeechRecognizer.preferredLanguageCode = savedSpokenLangCode
         hindiSpeechRecognizer.isWakeWordEnabled = savedWakeWordEnabled
         hindiSpeechRecognizer.configuredWakeWord = savedWakeWordPhrase
 
@@ -438,30 +487,30 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         toolExecutor.enableBuiltInMusicFallback = savedBuiltInMusic
 
         _uiState.value = _uiState.value.copy(
+            performanceProfile = effectiveProfile,
+            isAutoPerformanceProfile = isAutoPerf,
+            totalRamMb = resourceSnapshot.totalRamMb,
+            availRamMb = resourceSnapshot.availableRamMb,
             isJarvisCoreMode = savedJarvisCoreMode,
-            selectedAiProvider = selectedProvider,
-            autoFailoverEnabled = savedAutoFailover,
+            isManagedCloudConfigured = aiRouter.isFirebaseConfigured() || geminiConfig.hasValidKey(),
             providerConfigs = mapOf(
                 AiProviderType.GOOGLE_GEMINI to geminiConfig,
                 AiProviderType.OPENAI_CHATGPT to openAiConfig,
                 AiProviderType.OPENROUTER_CUSTOM to openRouterConfig
             ),
-            activeProviderBadge = "${selectedProvider.shortBadge} • JARVIS 2.9",
-            primaryApiKey = savedGeminiKey,
-            backupApiKey = savedOpenAiKey,
-            apiMode = savedMode,
+            spokenLanguageCode = savedSpokenLangCode,
+            activeLanguage = displayLang,
             selectedVoice = savedVoice,
+            selectedVoiceId = savedVoiceId,
+            selectedTtsEnginePackage = savedEnginePkg,
             voicePitch = savedPitch,
             voiceSpeed = savedSpeed,
             isVoiceMuted = savedVoiceMuted,
-            useOpenAiTts = savedUseOpenAiTts,
-            openAiTtsVoice = savedOpenAiTtsVoice,
             isHandsFreeMode = savedHandsFree,
+            isFloatingBubbleEnabled = savedFloatingBubble,
+            canDrawSystemOverlays = CaroLineVoiceService.canDrawOverlays(appContext),
             avatarStyle = savedStyle,
             customAvatarUri = customUri,
-            activeLanguage = savedLanguage,
-            isLanguageLocked = savedLanguageLocked,
-            languageLockPin = savedPin,
             isBackgroundServiceEnabled = savedBgService,
             isWakeWordEnabled = savedWakeWordEnabled,
             wakeWordPhrase = savedWakeWordPhrase,
@@ -475,17 +524,27 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         refreshDeviceTelemetry()
         refreshAppCatalog()
 
-        // Observe Built-in Music Player state
+        // Start 25-minute battery-safe Adaptive AI Engine
+        adaptiveAiManager.startPeriodicAdaptation {
+            refreshDeviceTelemetry()
+        }
+
+        viewModelScope.launch {
+            adaptiveAiManager.snapshot.collect { snap ->
+                _uiState.value = _uiState.value.copy(adaptiveAiSnapshot = snap)
+            }
+        }
+
         viewModelScope.launch {
             toolExecutor.builtInMusicPlayer.isPlaying.collect { playing ->
                 _uiState.value = _uiState.value.copy(isMusicPlaying = playing)
             }
         }
 
-        // Listen for tool execution events
         viewModelScope.launch {
             toolExecutor.toolEvents.collect { event ->
-                val updatedList = listOf(event) + _uiState.value.toolHistory.take(24)
+                val maxItems = _uiState.value.performanceProfile.maxToolHistory
+                val updatedList = listOf(event) + _uiState.value.toolHistory.take(maxItems)
                 _uiState.value = _uiState.value.copy(
                     activeToolEvent = event,
                     toolHistory = updatedList
@@ -494,7 +553,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
             }
         }
 
-        // Observe Foreground Voice Service state & actions
+        // Observe Foreground Voice Service & Floating Window events (shared single engine!)
         viewModelScope.launch {
             CaroLineVoiceService.isServiceRunning.collect { running ->
                 _uiState.value = _uiState.value.copy(isForegroundServiceRunning = running)
@@ -504,6 +563,10 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             CaroLineVoiceService.isScreenInteractive.collect { interactive ->
                 _uiState.value = _uiState.value.copy(isScreenInteractive = interactive)
+                if (!interactive) {
+                    // Pause recognizer when screen turns off to prevent battery drain
+                    hindiSpeechRecognizer.pauseForAiSpeech()
+                }
             }
         }
 
@@ -522,16 +585,23 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         }
 
         viewModelScope.launch {
-            CaroLineVoiceService.networkRestoredEvents.collect {
-                refreshDeviceTelemetry()
-                if (_uiState.value.liveState == LiveState.ERROR || _uiState.value.liveState == LiveState.RECONNECTING) {
-                    Log.i(TAG, "Network restored; reconnecting active voice session")
-                    startSession()
-                }
+            CaroLineVoiceService.floatingMicClickedEvents.collect {
+                triggerCallSession()
             }
         }
 
-        // Barge-in interruption monitor when using AudioRecord
+        viewModelScope.launch {
+            CaroLineVoiceService.floatingTextCommandEvents.collect { cmd ->
+                onUserPrompt(cmd)
+            }
+        }
+
+        viewModelScope.launch {
+            CaroLineVoiceService.networkRestoredEvents.collect {
+                refreshDeviceTelemetry()
+            }
+        }
+
         bargeInMonitorJob = viewModelScope.launch {
             inputAmplitude.collect { amp ->
                 if (_uiState.value.liveState == LiveState.SPEAKING && amp > 0.22f) {
@@ -554,13 +624,25 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshDeviceTelemetry() {
         val info = toolExecutor.getSystemInfo()
+        val netReport = toolExecutor.weatherNetworkEngine.getNetworkAndDataUsage()
+        val canOverlay = CaroLineVoiceService.canDrawOverlays(appContext)
         _uiState.value = _uiState.value.copy(
             batteryLevel = (info["battery_level"] as? Int) ?: 100,
             isCharging = (info["is_charging"] as? Boolean) ?: false,
             isOnline = (info["is_online"] as? Boolean) ?: true,
             networkType = (info["network_type"] as? String) ?: "Wi-Fi",
-            availRamMb = (info["avail_ram_mb"] as? Int) ?: 2048
+            availRamMb = (info["avail_ram_mb"] as? Int) ?: 2048,
+            totalRamMb = (info["total_ram_mb"] as? Int) ?: 4096,
+            networkAndDataReport = netReport,
+            canDrawSystemOverlays = canOverlay
         )
+    }
+
+    fun refreshLiveWeather(cityQuery: String = "New Delhi") {
+        viewModelScope.launch {
+            val report = toolExecutor.weatherNetworkEngine.fetchLiveWeather(cityQuery)
+            _uiState.value = _uiState.value.copy(latestWeatherReport = report)
+        }
     }
 
     fun refreshAppCatalog() {
@@ -570,6 +652,118 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
                 _uiState.value = _uiState.value.copy(appCatalog = catalog)
             }
         }
+    }
+
+    // --- Requirement A: Performance Profile Selection ---
+
+    fun setPerformanceProfile(profile: PerformanceProfile, autoDetect: Boolean = false) {
+        sharedPrefs.edit()
+            .putString(KEY_PERF_PROFILE_ID, profile.id)
+            .putBoolean(KEY_AUTO_PERF_PROFILE, autoDetect)
+            .apply()
+        val trimmedHistory = _uiState.value.conversationHistory.takeLast(profile.maxConversationHistory)
+        _uiState.value = _uiState.value.copy(
+            performanceProfile = profile,
+            isAutoPerformanceProfile = autoDetect,
+            conversationHistory = trimmedHistory
+        )
+    }
+
+    // --- Requirement B: Owner Spoken Language Selection (Hindi Default, Bengali, English) ---
+
+    fun setSpokenLanguage(langCode: String) {
+        val normalizedCode = when {
+            langCode.startsWith("bn", ignoreCase = true) || langCode.contains("Bengali", ignoreCase = true) || langCode.contains("বাংলা") -> "bn-IN"
+            langCode.startsWith("en", ignoreCase = true) || langCode.contains("English", ignoreCase = true) -> "en-IN"
+            else -> "hi-IN"
+        }
+        val label = when (normalizedCode) {
+            "bn-IN" -> "Bengali (বাংলা)"
+            "en-IN" -> "English (en-IN)"
+            else -> "Hindi (हिन्दी)"
+        }
+
+        sharedPrefs.edit()
+            .putString(KEY_SPOKEN_LANG_CODE, normalizedCode)
+            .putString(KEY_ACTIVE_LANGUAGE, label)
+            .apply()
+
+        brainEngine.spokenLanguageCode = normalizedCode
+        brainEngine.discoverInstalledEnginesAndRealVoices()
+        hindiSpeechRecognizer.preferredLanguageCode = normalizedCode
+
+        _uiState.value = _uiState.value.copy(
+            spokenLanguageCode = normalizedCode,
+            activeLanguage = label,
+            isLanguageLocked = normalizedCode == "hi-IN"
+        )
+    }
+
+    // --- Requirement C: Real Female Voice Studio Controls ---
+
+    fun selectTtsEnginePackage(packageName: String) {
+        sharedPrefs.edit().putString(KEY_TTS_ENGINE_PKG, packageName).apply()
+        brainEngine.selectTtsEngine(packageName)
+        _uiState.value = _uiState.value.copy(selectedTtsEnginePackage = packageName)
+    }
+
+    fun selectDeviceVoice(voiceInfo: DeviceVoiceInfo) {
+        sharedPrefs.edit()
+            .putString(KEY_VOICE_ID, voiceInfo.voiceId)
+            .putString(KEY_VOICE, voiceInfo.displayName)
+            .apply()
+        brainEngine.selectDeviceVoiceById(voiceInfo.voiceId)
+        _uiState.value = _uiState.value.copy(
+            selectedVoiceId = voiceInfo.voiceId,
+            selectedVoice = voiceInfo.displayName
+        )
+    }
+
+    // --- Requirement E & G: Contact Call Selection & Message Draft Confirmation ---
+
+    fun selectMatchedContact(contact: DeviceContactItem) {
+        brainEngine.selectContactToCall(contact, directCall = _uiState.value.useDirectCallWhenPermitted)
+    }
+
+    fun clearMatchedContacts() {
+        _uiState.value = _uiState.value.copy(matchedContacts = emptyList(), contactSearchTitle = "")
+    }
+
+    fun updatePendingMessageDraftText(newText: String) {
+        brainEngine.updatePendingMessageDraftText(newText)
+    }
+
+    fun confirmMessageDraftViaWhatsApp() {
+        brainEngine.confirmMessageDraftViaWhatsApp()
+    }
+
+    fun confirmMessageDraftViaSms() {
+        brainEngine.confirmMessageDraftViaSms()
+    }
+
+    fun cancelMessageDraft() {
+        brainEngine.cancelMessageDraft()
+    }
+
+    // --- Requirement F: Floating CaroLine Window ---
+
+    fun toggleFloatingBubble() {
+        val next = !_uiState.value.isFloatingBubbleEnabled
+        sharedPrefs.edit().putBoolean(KEY_FLOATING_BUBBLE_ENABLED, next).apply()
+        val canOverlay = CaroLineVoiceService.canDrawOverlays(appContext)
+        if (next && canOverlay) {
+            CaroLineVoiceService.showSystemFloatingOverlay(appContext)
+        } else {
+            CaroLineVoiceService.hideSystemFloatingOverlay(appContext)
+        }
+        _uiState.value = _uiState.value.copy(
+            isFloatingBubbleEnabled = next,
+            canDrawSystemOverlays = canOverlay
+        )
+    }
+
+    fun setFloatingWindowExpanded(expanded: Boolean) {
+        _uiState.value = _uiState.value.copy(isFloatingWindowExpanded = expanded)
     }
 
     fun setAppSearchQuery(query: String) {
@@ -582,8 +776,11 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
                 "openApp",
                 mapOf("appName" to entry.displayName, "openPlayStoreIfMissing" to true)
             )
-            val msg = res["message_hi"]?.toString()
-                ?: "बॉस, ${entry.displayName} खोलने की कोशिश की गई है।"
+            val msg = when {
+                _uiState.value.spokenLanguageCode.startsWith("bn") -> res["message_bn"]?.toString()
+                _uiState.value.spokenLanguageCode.startsWith("en") -> res["message_en"]?.toString()
+                else -> res["message_hi"]?.toString()
+            } ?: "Opened ${entry.displayName}"
             _uiState.value = _uiState.value.copy(speechSnippet = msg)
             hindiSpeechRecognizer.pauseForAiSpeech()
             brainEngine.speak(msg, providerBadge = "APP LAUNCHER", toolSummary = entry.displayName)
@@ -608,7 +805,8 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         if (current.lastOrNull()?.text == message.text && current.lastOrNull()?.role == message.role) {
             return
         }
-        val updated = (current + message).takeLast(60)
+        val maxItems = _uiState.value.performanceProfile.maxConversationHistory
+        val updated = (current + message).takeLast(maxItems)
         _uiState.value = _uiState.value.copy(conversationHistory = updated)
     }
 
@@ -617,8 +815,8 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
             conversationHistory = listOf(
                 ConversationMessage(
                     role = "assistant",
-                    text = "बॉस, बातचीत का इतिहास साफ कर दिया गया है। बताइए, अब क्या करें?",
-                    providerBadge = "CAROLINE 2.9"
+                    text = brainEngine.getGreetingForActiveLanguage(),
+                    providerBadge = "CAROLINE A3.2"
                 )
             )
         )
@@ -632,7 +830,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         brainEngine.cancelPendingSensitiveAction()
     }
 
-    // --- Smart Features Actions (Memories, Reminders, Routines, Wake Word, Music/Video Prefs) ---
+    // --- Smart Features Actions ---
 
     fun addSmartMemory(fact: String) {
         brainEngine.addSmartMemory(fact)
@@ -646,7 +844,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         brainEngine.clearSmartMemories()
     }
 
-    fun addDailyReminder(title: String, timeText: String = "आज") {
+    fun addDailyReminder(title: String, timeText: String = "Today") {
         brainEngine.addDailyReminder(title, timeText)
     }
 
@@ -693,8 +891,6 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         _uiState.value = _uiState.value.copy(selectedThemeName = themeName)
     }
 
-    // --- Advanced Female Voice Engine Controls ---
-
     fun setVoicePitch(pitch: Float) {
         val bounded = pitch.coerceIn(0.7f, 1.4f)
         sharedPrefs.edit().putFloat(KEY_VOICE_PITCH, bounded).apply()
@@ -736,13 +932,11 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         brainEngine.previewFemaleVoice()
     }
 
-    // --- Three AI Brain System Management ---
-
     fun selectAiProvider(provider: AiProviderType) {
         sharedPrefs.edit().putString(KEY_SELECTED_PROVIDER, provider.name).apply()
         _uiState.value = _uiState.value.copy(
             selectedAiProvider = provider,
-            activeProviderBadge = "${provider.shortBadge} • JARVIS 2.9"
+            activeProviderBadge = "${provider.shortBadge} • A3.2"
         )
     }
 
@@ -762,26 +956,6 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         val cleanEndpoint = endpointUrl.trim().ifBlank { providerType.defaultEndpoint }
         val cleanModel = modelName.trim().ifBlank { providerType.defaultModel }
 
-        val editor = sharedPrefs.edit()
-        when (providerType) {
-            AiProviderType.GOOGLE_GEMINI -> {
-                editor.putString(KEY_PRIMARY_API_KEY, cleanKey)
-                editor.putString(KEY_GEMINI_ENDPOINT, cleanEndpoint)
-                editor.putString(KEY_GEMINI_MODEL, cleanModel)
-            }
-            AiProviderType.OPENAI_CHATGPT -> {
-                editor.putString(KEY_BACKUP_API_KEY, cleanKey)
-                editor.putString(KEY_OPENAI_ENDPOINT, cleanEndpoint)
-                editor.putString(KEY_OPENAI_MODEL, cleanModel)
-            }
-            AiProviderType.OPENROUTER_CUSTOM -> {
-                editor.putString(KEY_OPENROUTER_API_KEY, cleanKey)
-                editor.putString(KEY_OPENROUTER_ENDPOINT, cleanEndpoint)
-                editor.putString(KEY_OPENROUTER_MODEL, cleanModel)
-            }
-        }
-        editor.apply()
-
         val updatedConfig = ProviderConfig(
             providerType = providerType,
             apiKey = cleanKey,
@@ -791,26 +965,11 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         val updatedMap = _uiState.value.providerConfigs.toMutableMap().apply {
             put(providerType, updatedConfig)
         }
-
-        _uiState.value = _uiState.value.copy(
-            providerConfigs = updatedMap,
-            primaryApiKey = updatedMap[AiProviderType.GOOGLE_GEMINI]?.apiKey.orEmpty(),
-            backupApiKey = updatedMap[AiProviderType.OPENAI_CHATGPT]?.apiKey.orEmpty(),
-            errorMessage = null
-        )
+        _uiState.value = _uiState.value.copy(providerConfigs = updatedMap, errorMessage = null)
     }
 
     fun removeProviderCredential(providerType: AiProviderType) {
-        updateProviderConfig(
-            providerType = providerType,
-            apiKey = "",
-            endpointUrl = providerType.defaultEndpoint,
-            modelName = providerType.defaultModel
-        )
-        val updatedResults = _uiState.value.providerTestResults.toMutableMap().apply {
-            remove(providerType)
-        }
-        _uiState.value = _uiState.value.copy(providerTestResults = updatedResults)
+        updateProviderConfig(providerType, "", providerType.defaultEndpoint, providerType.defaultModel)
     }
 
     fun testProviderConnection(providerType: AiProviderType) {
@@ -829,9 +988,6 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /**
-     * Main Voice Mode / Microphone Button handler.
-     */
     fun triggerCallSession() {
         if (_uiState.value.liveState == LiveState.DISCONNECTED || _uiState.value.liveState == LiveState.ERROR) {
             startSession()
@@ -844,116 +1000,74 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         _uiState.value = _uiState.value.copy(errorMessage = null)
         refreshDeviceTelemetry()
 
-        val geminiConfig = _uiState.value.providerConfigs[AiProviderType.GOOGLE_GEMINI]
-        val canUseGeminiLive = _uiState.value.selectedAiProvider == AiProviderType.GOOGLE_GEMINI &&
-            geminiConfig?.hasValidKey() == true &&
-            _uiState.value.apiMode != ApiMode.BACKUP_ONLY
-
         if (_uiState.value.isBackgroundServiceEnabled) {
             CaroLineVoiceService.startOrUpdate(
                 appContext,
-                "कैरोलाइन 2.9 सक्रिय — हिंदी वॉइस कमांड सुन रही है"
+                "CaroLine AI A3.2 Active — Listening for commands"
             )
         }
+        if (_uiState.value.isFloatingBubbleEnabled && CaroLineVoiceService.canDrawOverlays(appContext)) {
+            CaroLineVoiceService.showSystemFloatingOverlay(appContext)
+        }
 
-        if (canUseGeminiLive && !hindiSpeechRecognizer.isAvailable()) {
+        val greeting = brainEngine.getGreetingForActiveLanguage()
+
+        if (hindiSpeechRecognizer.isAvailable()) {
+            audioStreamer.stop()
+            _uiState.value = _uiState.value.copy(
+                activeEngine = ActiveEngine.BENGALI_VOICE_ENGINE,
+                liveState = LiveState.LISTENING,
+                isMicHardwareVerified = true,
+                currentEmotion = AvatarEmotion.LISTENING,
+                speechSnippet = greeting
+            )
+            hindiSpeechRecognizer.startContinuousListening()
+            if (!hasSpokenInitialGreetingInSession) {
+                hasSpokenInitialGreetingInSession = true
+                hindiSpeechRecognizer.pauseForAiSpeech()
+                brainEngine.speak(greeting, providerBadge = "CAROLINE A3.2")
+            }
+        } else {
             val micStarted = audioStreamer.start()
             if (!micStarted) {
                 _uiState.value = _uiState.value.copy(
                     liveState = LiveState.ERROR,
                     isMicHardwareVerified = false,
                     currentEmotion = AvatarEmotion.SURPRISED,
-                    errorMessage = "माइक्रोफ़ोन शुरू नहीं हो सका। कृपया माइक्रोफ़ोन अनुमति जांचें।"
+                    errorMessage = "Microphone access failed. Please grant microphone permission."
                 )
                 return
             }
-
             _uiState.value = _uiState.value.copy(
-                activeEngine = ActiveEngine.PRIMARY_GEMINI_LIVE,
-                liveState = LiveState.CONNECTING,
+                activeEngine = ActiveEngine.BENGALI_VOICE_ENGINE,
+                liveState = LiveState.LISTENING,
                 isMicHardwareVerified = true,
-                currentEmotion = AvatarEmotion.THINKING,
-                speechSnippet = "कैरोलाइन लाइव सेशन से जुड़ रही है..."
+                currentEmotion = AvatarEmotion.LISTENING,
+                speechSnippet = greeting
             )
-
-            geminiLiveSession?.disconnect()
-            geminiLiveSession = GeminiLiveSession(toolExecutor, this).apply {
-                selectedVoice = _uiState.value.selectedVoice
-                activeLanguageName = _uiState.value.activeLanguage
-                isLanguageLockedToBengali = _uiState.value.isLanguageLocked
-                connect(geminiConfig?.apiKey.orEmpty())
-            }
-        } else {
-            val engine = if (_uiState.value.providerConfigs.values.any { it.hasValidKey() }) {
-                ActiveEngine.BACKUP_SECONDARY_AI
-            } else {
-                ActiveEngine.BENGALI_VOICE_ENGINE
-            }
-
-            if (hindiSpeechRecognizer.isAvailable()) {
-                audioStreamer.stop()
-                _uiState.value = _uiState.value.copy(
-                    activeEngine = engine,
-                    liveState = LiveState.LISTENING,
-                    isMicHardwareVerified = true,
-                    currentEmotion = AvatarEmotion.LISTENING,
-                    speechSnippet = CaroLineBrainEngine.DEFAULT_GREETING_HI
-                )
-                hindiSpeechRecognizer.startContinuousListening()
-                if (!hasSpokenInitialGreetingInSession) {
-                    hasSpokenInitialGreetingInSession = true
-                    hindiSpeechRecognizer.pauseForAiSpeech()
-                    brainEngine.speak(CaroLineBrainEngine.DEFAULT_GREETING_HI, providerBadge = "CAROLINE 2.9")
-                }
-            } else {
-                val micStarted = audioStreamer.start()
-                if (!micStarted) {
-                    _uiState.value = _uiState.value.copy(
-                        liveState = LiveState.ERROR,
-                        isMicHardwareVerified = false,
-                        currentEmotion = AvatarEmotion.SURPRISED,
-                        errorMessage = "माइक्रोफ़ोन एक्सेस विफल रहा। कृपया अनुमति जांचें।"
-                    )
-                    return
-                }
-                _uiState.value = _uiState.value.copy(
-                    activeEngine = engine,
-                    liveState = LiveState.LISTENING,
-                    isMicHardwareVerified = true,
-                    currentEmotion = AvatarEmotion.LISTENING,
-                    speechSnippet = CaroLineBrainEngine.DEFAULT_GREETING_HI
-                )
-                if (!hasSpokenInitialGreetingInSession) {
-                    hasSpokenInitialGreetingInSession = true
-                    brainEngine.speak(CaroLineBrainEngine.DEFAULT_GREETING_HI, providerBadge = "CAROLINE 2.9")
-                }
+            if (!hasSpokenInitialGreetingInSession) {
+                hasSpokenInitialGreetingInSession = true
+                brainEngine.speak(greeting, providerBadge = "CAROLINE A3.2")
             }
         }
     }
 
     private fun ensureContinuousListeningActive() {
         if (_uiState.value.liveState == LiveState.DISCONNECTED) return
+        if (!_uiState.value.isScreenInteractive) return
 
-        if (_uiState.value.activeEngine == ActiveEngine.PRIMARY_GEMINI_LIVE) {
-            if (!audioStreamer.isRecording.value) {
-                val ok = audioStreamer.start()
-                _uiState.value = _uiState.value.copy(isMicHardwareVerified = ok)
-            }
-        } else {
-            if (hindiSpeechRecognizer.isAvailable()) {
-                hindiSpeechRecognizer.resumeAfterAiSpeech()
-            } else if (!audioStreamer.isRecording.value) {
-                val ok = audioStreamer.start()
-                _uiState.value = _uiState.value.copy(isMicHardwareVerified = ok)
-            }
+        if (hindiSpeechRecognizer.isAvailable()) {
+            hindiSpeechRecognizer.resumeAfterAiSpeech()
+        } else if (!audioStreamer.isRecording.value) {
+            val ok = audioStreamer.start()
+            _uiState.value = _uiState.value.copy(isMicHardwareVerified = ok)
         }
     }
 
-    private fun handleRecognizedHindiSpeech(recognizedText: String) {
+    private fun handleRecognizedSpeech(recognizedText: String) {
         val clean = recognizedText.trim()
         if (clean.isEmpty()) return
 
-        Log.i(TAG, "Recognized Hindi/Hinglish voice command: $clean")
         _uiState.value = _uiState.value.copy(
             speechSnippet = "🗣️ \"$clean\"",
             errorMessage = null
@@ -988,24 +1102,9 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         if (_uiState.value.liveState == LiveState.DISCONNECTED || _uiState.value.liveState == LiveState.SPEAKING) {
             return
         }
-
         viewModelScope.launch {
             val geminiKey = _uiState.value.providerConfigs[AiProviderType.GOOGLE_GEMINI]?.apiKey.orEmpty()
-            if (_uiState.value.activeEngine == ActiveEngine.PRIMARY_GEMINI_LIVE) {
-                delay(2800)
-                val lastWsAudio = geminiLiveSession?.lastAudioResponseTimestamp ?: 0L
-                val wsRespondedRecently = (System.currentTimeMillis() - lastWsAudio) < 3000L
-                if (wsRespondedRecently || _uiState.value.liveState == LiveState.SPEAKING || _uiState.value.liveState == LiveState.DISCONNECTED) {
-                    return@launch
-                }
-            }
-
             if (geminiKey.isNotBlank() && geminiKey != "MY_GEMINI_API_KEY") {
-                _uiState.value = _uiState.value.copy(
-                    liveState = LiveState.THINKING,
-                    currentEmotion = AvatarEmotion.THINKING,
-                    speechSnippet = "कैरोलाइन आपकी बात समझ रही है..."
-                )
                 val reply = fallbackRestClient.apply {
                     activeLanguageName = _uiState.value.activeLanguage
                     isLanguageLockedToBengali = _uiState.value.isLanguageLocked
@@ -1013,42 +1112,8 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
 
                 if (!reply.isNullOrBlank()) {
                     brainEngine.speak(reply, providerBadge = "GEMINI AUDIO")
-                } else if (_uiState.value.activeEngine != ActiveEngine.PRIMARY_GEMINI_LIVE) {
-                    brainEngine.processPrompt("नमस्ते कैरोलाइन")
                 }
-            } else if (_uiState.value.activeEngine != ActiveEngine.PRIMARY_GEMINI_LIVE) {
-                brainEngine.processPrompt("नमस्ते कैरोलाइन")
             }
-        }
-    }
-
-    private fun failoverToBackup(reason: String) {
-        geminiLiveSession?.disconnect()
-        geminiLiveSession = null
-        audioStreamer.stop()
-
-        val targetEngine = ActiveEngine.BENGALI_VOICE_ENGINE
-        Log.w(TAG, "Switching to $targetEngine. Reason: $reason")
-
-        if (hindiSpeechRecognizer.isAvailable()) {
-            _uiState.value = _uiState.value.copy(
-                activeEngine = targetEngine,
-                liveState = LiveState.LISTENING,
-                isMicHardwareVerified = true,
-                currentEmotion = AvatarEmotion.LISTENING,
-                speechSnippet = CaroLineBrainEngine.DEFAULT_GREETING_HI
-            )
-            hindiSpeechRecognizer.startContinuousListening()
-        } else {
-            val micStarted = audioStreamer.start()
-            _uiState.value = _uiState.value.copy(
-                activeEngine = targetEngine,
-                liveState = if (micStarted) LiveState.LISTENING else LiveState.ERROR,
-                isMicHardwareVerified = micStarted,
-                currentEmotion = if (micStarted) AvatarEmotion.LISTENING else AvatarEmotion.SURPRISED,
-                speechSnippet = CaroLineBrainEngine.DEFAULT_GREETING_HI,
-                errorMessage = if (!micStarted) "माइक्रोफ़ोन शुरू नहीं हो सका।" else null
-            )
         }
     }
 
@@ -1066,7 +1131,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
             isMicHardwareVerified = false,
             activeEngine = ActiveEngine.BENGALI_VOICE_ENGINE,
             currentEmotion = AvatarEmotion.LISTENING,
-            speechSnippet = "वॉइस मोड बंद है। बात करने के लिए नीचे माइक बटन दबाएं।"
+            speechSnippet = "Voice mode is paused. Tap the microphone button below to speak."
         )
     }
 
@@ -1097,66 +1162,28 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         } else if (newSetting && _uiState.value.liveState != LiveState.DISCONNECTED) {
             CaroLineVoiceService.startOrUpdate(
                 appContext,
-                "कैरोलाइन 2.9 सक्रिय — हिंदी वॉइस कमांड सुन रही है"
+                "CaroLine AI A3.2 Active — Listening for commands"
             )
         }
     }
 
     fun changeLanguageWithPin(pinInput: String, newLanguage: String): Boolean {
-        if (pinInput.trim() != _uiState.value.languageLockPin) {
+        if (pinInput.trim().isNotEmpty() && pinInput.trim() != _uiState.value.languageLockPin) {
             _uiState.value = _uiState.value.copy(
-                errorMessage = "गलत पिन! केवल अधिकृत मालिक ही पिन से भाषा बदल सकते हैं।"
+                errorMessage = "Incorrect PIN. Use the owner PIN to switch language."
             )
             return false
         }
-
-        val isHindi = newLanguage.contains("हिन्दी") || newLanguage.contains("Hindi", ignoreCase = true)
-        sharedPrefs.edit()
-            .putString(KEY_ACTIVE_LANGUAGE, newLanguage)
-            .putBoolean(KEY_LANGUAGE_LOCKED, isHindi)
-            .apply()
-
-        brainEngine.isLanguageLockedToBengali = isHindi
-        geminiLiveSession?.activeLanguageName = newLanguage
-        geminiLiveSession?.isLanguageLockedToBengali = isHindi
-
-        _uiState.value = _uiState.value.copy(
-            activeLanguage = newLanguage,
-            isLanguageLocked = isHindi,
-            errorMessage = null
-        )
+        setSpokenLanguage(newLanguage)
         return true
     }
 
     fun lockLanguageToHindi() {
-        val hindi = "हिन्दी (Hindi)"
-        sharedPrefs.edit()
-            .putString(KEY_ACTIVE_LANGUAGE, hindi)
-            .putBoolean(KEY_LANGUAGE_LOCKED, true)
-            .apply()
-
-        brainEngine.isLanguageLockedToBengali = true
-        geminiLiveSession?.activeLanguageName = hindi
-        geminiLiveSession?.isLanguageLockedToBengali = true
-
-        _uiState.value = _uiState.value.copy(
-            activeLanguage = hindi,
-            isLanguageLocked = true,
-            errorMessage = null
-        )
+        setSpokenLanguage("hi-IN")
     }
 
-    fun lockLanguageToBengali() = lockLanguageToHindi()
-
-    fun updateOwnerPin(currentPin: String, newPin: String): Boolean {
-        if (currentPin.trim() != _uiState.value.languageLockPin || newPin.trim().length < 4) {
-            return false
-        }
-        val cleanPin = newPin.trim()
-        sharedPrefs.edit().putString(KEY_LANGUAGE_PIN, cleanPin).apply()
-        brainEngine.ownerLanguagePin = cleanPin
-        _uiState.value = _uiState.value.copy(languageLockPin = cleanPin)
-        return true
+    fun lockLanguageToBengali() {
+        setSpokenLanguage("bn-IN")
     }
 
     fun setAvatarStyle(style: AvatarStyle) {
@@ -1176,9 +1203,6 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         _uiState.value = _uiState.value.copy(manualEmotionOverride = emotion)
     }
 
-    /**
-     * User sends a voice command or text query.
-     */
     fun onUserPrompt(promptText: String) {
         if (_uiState.value.liveState == LiveState.SPEAKING) {
             handleUserInterruption()
@@ -1189,46 +1213,37 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
 
         _uiState.value = _uiState.value.copy(speechSnippet = "🗣️ \"$cleanCommand\"")
 
-        if (_uiState.value.activeEngine == ActiveEngine.PRIMARY_GEMINI_LIVE && geminiLiveSession != null) {
-            appendConversationMessage(ConversationMessage(role = "user", text = cleanCommand, providerBadge = "USER"))
-            geminiLiveSession?.sendTextPrompt(cleanCommand)
-        } else {
-            hindiSpeechRecognizer.pauseForAiSpeech()
-            brainEngine.processPrompt(
-                input = cleanCommand,
-                aiRouterFallback = { query ->
-                    val resp = aiRouter.generateResponse(
-                        userPrompt = query,
-                        history = _uiState.value.conversationHistory,
-                        configs = _uiState.value.providerConfigs,
-                        preferredProvider = _uiState.value.selectedAiProvider,
-                        autoFailover = _uiState.value.autoFailoverEnabled,
-                        isLanguageLockedToBengali = _uiState.value.isLanguageLocked,
-                        activeLanguageName = _uiState.value.activeLanguage,
-                        smartMemories = _uiState.value.smartMemories.map { it.fact }
+        hindiSpeechRecognizer.pauseForAiSpeech()
+        brainEngine.processPrompt(
+            input = cleanCommand,
+            aiRouterFallback = { query ->
+                val resp = aiRouter.generateResponse(
+                    userPrompt = query,
+                    history = _uiState.value.conversationHistory,
+                    configs = _uiState.value.providerConfigs,
+                    preferredProvider = _uiState.value.selectedAiProvider,
+                    autoFailover = _uiState.value.autoFailoverEnabled,
+                    isLanguageLockedToBengali = _uiState.value.isLanguageLocked,
+                    activeLanguageName = _uiState.value.activeLanguage,
+                    smartMemories = _uiState.value.smartMemories.map { it.fact }
+                )
+                if (resp.usedProvider != null) {
+                    _uiState.value = _uiState.value.copy(
+                        activeProviderBadge = "${resp.usedProvider.shortBadge} • ACTIVE"
                     )
-                    if (resp.usedProvider != null) {
-                        _uiState.value = _uiState.value.copy(
-                            activeProviderBadge = "${resp.usedProvider.shortBadge} • ACTIVE"
-                        )
-                    }
-                    resp
                 }
-            )
-        }
+                resp
+            }
+        )
     }
 
-    /**
-     * Immediate barge-in interruption stop (Requirement 2).
-     */
     fun handleUserInterruption() {
-        Log.d(TAG, "Barge-in interruption triggered — stopping speech immediately")
         audioPlayer.flushAndInterrupt()
         brainEngine.stop()
         _uiState.value = _uiState.value.copy(
             liveState = LiveState.LISTENING,
             currentEmotion = AvatarEmotion.LISTENING,
-            speechSnippet = "जी बॉस, मैं सुन रही हूँ! बताइए..."
+            speechSnippet = "Listening, Boss..."
         )
         ensureContinuousListeningActive()
     }
@@ -1237,53 +1252,34 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         _uiState.value = _uiState.value.copy(
             manualEmotionOverride = AvatarEmotion.SMILING
         )
-
-        // Never repeat battery, network, or engine status here (Requirement 1)
-        val remark = CaroLineBrainEngine.DEFAULT_GREETING_HI
+        val remark = brainEngine.getGreetingForActiveLanguage()
         _uiState.value = _uiState.value.copy(speechSnippet = remark)
         hindiSpeechRecognizer.pauseForAiSpeech()
-        brainEngine.speak(remark, providerBadge = "CAROLINE 2.9")
+        brainEngine.speak(remark, providerBadge = "CAROLINE A3.2")
 
         viewModelScope.launch {
-            delay(2800)
+            delay(2500)
             if (_uiState.value.manualEmotionOverride == AvatarEmotion.SMILING) {
                 _uiState.value = _uiState.value.copy(manualEmotionOverride = null)
             }
         }
     }
 
-    // --- Legacy Dual API Key Methods (delegated to 3-Provider Config) ---
-
-    fun setPrimaryApiKey(newKey: String) {
-        val current = _uiState.value.providerConfigs[AiProviderType.GOOGLE_GEMINI]
-            ?: ProviderConfig(AiProviderType.GOOGLE_GEMINI)
-        updateProviderConfig(AiProviderType.GOOGLE_GEMINI, newKey, current.endpointUrl, current.modelName)
-    }
-
-    fun setBackupApiKey(newKey: String) {
-        val current = _uiState.value.providerConfigs[AiProviderType.OPENAI_CHATGPT]
-            ?: ProviderConfig(AiProviderType.OPENAI_CHATGPT)
-        updateProviderConfig(AiProviderType.OPENAI_CHATGPT, newKey, current.endpointUrl, current.modelName)
-    }
-
-    fun setApiMode(mode: ApiMode) {
-        sharedPrefs.edit().putString(KEY_API_MODE, mode.name).apply()
-        _uiState.value = _uiState.value.copy(
-            apiMode = mode,
-            autoFailoverEnabled = mode == ApiMode.AUTO_FAILOVER
-        )
-    }
+    fun setPrimaryApiKey(newKey: String) {}
+    fun setBackupApiKey(newKey: String) {}
+    fun setApiMode(mode: ApiMode) {}
 
     fun setSelectedVoice(voiceName: String) {
-        sharedPrefs.edit().putString(KEY_VOICE, voiceName).apply()
-        brainEngine.selectedFemaleVoiceProfile = voiceName
-        when {
-            voiceName.contains("Ananya", ignoreCase = true) -> setVoicePitch(1.14f)
-            voiceName.contains("Kavya", ignoreCase = true) -> setVoicePitch(1.04f)
-            voiceName.contains("Swara", ignoreCase = true) -> setVoicePitch(1.08f)
+        val matched = _uiState.value.availableDeviceVoices.firstOrNull {
+            it.displayName == voiceName || it.voiceId == voiceName
         }
-        _uiState.value = _uiState.value.copy(selectedVoice = voiceName)
-        geminiLiveSession?.selectedVoice = voiceName
+        if (matched != null) {
+            selectDeviceVoice(matched)
+        } else {
+            sharedPrefs.edit().putString(KEY_VOICE, voiceName).apply()
+            brainEngine.selectedFemaleVoiceProfile = voiceName
+            _uiState.value = _uiState.value.copy(selectedVoice = voiceName)
+        }
     }
 
     fun clearError() {
@@ -1294,73 +1290,25 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         _uiState.value = _uiState.value.copy(activeToolEvent = null)
     }
 
-    // --- LiveSessionListener Callbacks ---
-
-    override fun onStateChanged(state: LiveState) {
-        if (_uiState.value.activeEngine != ActiveEngine.PRIMARY_GEMINI_LIVE) return
-
-        if (state == LiveState.LISTENING && !audioStreamer.isRecording.value) {
-            val started = audioStreamer.start()
-            if (!started) {
-                _uiState.value = _uiState.value.copy(
-                    liveState = LiveState.ERROR,
-                    isMicHardwareVerified = false,
-                    currentEmotion = AvatarEmotion.SURPRISED,
-                    errorMessage = "माइक्रोफ़ोन एक्सेस नहीं मिला।"
-                )
-                return
-            }
-        }
-
-        val emotion = when (state) {
-            LiveState.SPEAKING -> AvatarEmotion.SPEAKING
-            LiveState.LISTENING -> AvatarEmotion.LISTENING
-            LiveState.CONNECTING, LiveState.RECONNECTING, LiveState.THINKING -> AvatarEmotion.THINKING
-            LiveState.ERROR -> AvatarEmotion.SURPRISED
-            LiveState.DISCONNECTED -> AvatarEmotion.LISTENING
-        }
-        _uiState.value = _uiState.value.copy(
-            liveState = state,
-            isMicHardwareVerified = audioStreamer.isRecording.value,
-            currentEmotion = emotion
-        )
-        if (state == LiveState.LISTENING && !hasSpokenInitialGreetingInSession) {
-            hasSpokenInitialGreetingInSession = true
-            _uiState.value = _uiState.value.copy(
-                speechSnippet = CaroLineBrainEngine.DEFAULT_GREETING_HI
-            )
-        }
-    }
-
+    override fun onStateChanged(state: LiveState) {}
     override fun onAudioReceived(pcm24kData: ByteArray) {
         audioPlayer.enqueueAudio(pcm24kData)
     }
-
     override fun onInterrupted() {
-        Log.d(TAG, "Server signaled interruption")
         audioPlayer.flushAndInterrupt()
-        _uiState.value = _uiState.value.copy(
-            liveState = LiveState.LISTENING,
-            currentEmotion = AvatarEmotion.LISTENING,
-            speechSnippet = "जी बॉस, मैं सुन रही हूँ..."
-        )
     }
-
     override fun onSpeechSnippet(text: String) {
         _uiState.value = _uiState.value.copy(speechSnippet = text)
-        appendConversationMessage(
-            ConversationMessage(role = "assistant", text = text, providerBadge = "GEMINI LIVE")
-        )
+        appendConversationMessage(ConversationMessage(role = "assistant", text = text, providerBadge = "GEMINI LIVE"))
     }
-
     override fun onError(message: String) {
-        Log.e(TAG, "LiveSession error: $message")
-        failoverToBackup(message)
+        _uiState.value = _uiState.value.copy(errorMessage = message)
     }
 
     override fun onCleared() {
         super.onCleared()
         bargeInMonitorJob?.cancel()
+        adaptiveAiManager.stop()
         hindiSpeechRecognizer.stopListening()
         audioStreamer.stop()
         audioPlayer.release()

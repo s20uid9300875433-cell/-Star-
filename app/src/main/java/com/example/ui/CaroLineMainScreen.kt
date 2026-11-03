@@ -19,6 +19,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -41,9 +43,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
@@ -62,6 +67,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -72,17 +78,21 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.live.ConversationMessage
 import com.example.live.LiveState
+import com.example.tools.DeviceContactItem
+import com.example.tools.MessageDraftPreview
 import com.example.tools.PendingSensitiveAction
 import com.example.ui.components.AudioWaveform
 import com.example.ui.components.CaroLineAnimeAvatarView
@@ -102,16 +112,22 @@ import com.example.ui.theme.MutedVioletGray
 import com.example.ui.theme.PureWhite
 import com.example.ui.theme.SoftLilac
 import com.example.viewmodel.CaroLineViewModel
+import kotlin.math.roundToInt
 
 /**
- * CaroLine AI 2.9 – Ultimate Smart JARVIS Home Screen.
+ * CaroLine AI A3.2 – Ultimate Android Smart JARVIS Home Screen.
  *
- * Clean, minimal, futuristic anime-JARVIS design featuring ONLY the 5 primary controls:
- * 1. Settings icon (opens the unified Settings Dashboard with all secondary controls)
- * 2. AI avatar / animated AI core (`caroline_avatar_main.png` inside glowing cyan & golden yellow JARVIS rings)
- * 3. Listening and speaking status (Hindi status pill + real-time audio waveform)
- * 4. One conversation area (glassmorphism card displaying the current conversation exchange + optional command input)
- * 5. Microphone button (glowing cyan/golden voice activation button)
+ * All interface labels, buttons, and controls are in English (Requirement B), while
+ * CaroLine speaks in the owner's chosen spoken language (Hindi by default, Bengali, or English).
+ * Includes:
+ * - Header with A3.2 badge, active RAM Performance Profile badge, Floating Bubble toggle, and Settings button
+ * - AI Avatar / Holographic Core
+ * - Interactive Contact Selection Card (Requirement E)
+ * - Smart Message Preview Confirmation Card (Requirement G)
+ * - Listening & Speaking Status Bar
+ * - Conversation & Command Card
+ * - Primary Voice Activation Microphone Button
+ * - Movable Floating CaroLine Bubble & Compact Floating Window (Requirement F)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,6 +162,14 @@ fun CaroLineMainScreen(
             } else {
                 viewModel.triggerCallSession()
             }
+        }
+    }
+
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.onUserPrompt("Find the contact ending in 45")
         }
     }
 
@@ -208,14 +232,14 @@ fun CaroLineMainScreen(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 // =====================================================================
-                // CONTROL 1: TOP HEADER WITH SINGLE SETTINGS ICON
+                // CONTROL 1: TOP HEADER WITH A3.2 BADGE, PERFORMANCE MODE & SETTINGS
                 // =====================================================================
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "CAROLINE AI",
@@ -232,46 +256,92 @@ fun CaroLineMainScreen(
                                 border = BorderStroke(1.dp, AccentGold.copy(alpha = 0.75f))
                             ) {
                                 Text(
-                                    text = "2.9",
+                                    text = "A3.2",
                                     fontSize = 11.sp,
                                     color = AccentGold,
                                     fontWeight = FontWeight.ExtraBold,
                                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 2.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = JarvisCyan.copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(50),
+                                border = BorderStroke(1.dp, JarvisCyan.copy(alpha = 0.6f))
+                            ) {
+                                Text(
+                                    text = uiState.performanceProfile.displayName.uppercase(),
+                                    fontSize = 9.sp,
+                                    color = JarvisCyan,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                         Text(
-                            text = "ULTIMATE SMART JARVIS • हिन्दी एआई असिस्टेंट",
+                            text = "ULTIMATE ANDROID SMART JARVIS • Voice: ${uiState.activeLanguage}",
                             fontSize = 11.sp,
                             color = JarvisCyan,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
-                    // Single Settings Icon (houses all secondary functions)
-                    Surface(
-                        color = JarvisHudSurface.copy(alpha = 0.9f),
-                        shape = CircleShape,
-                        border = BorderStroke(1.2.dp, JarvisCyan.copy(alpha = 0.7f)),
-                        shadowElevation = 8.dp,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .clickable { showSettings = true }
-                            .testTag("top_settings_button")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Open CaroLine Settings Dashboard",
-                                tint = AccentGold,
-                                modifier = Modifier.size(24.dp)
-                            )
+                        // Quick toggle for Floating Window
+                        Surface(
+                            color = if (uiState.isFloatingWindowExpanded) JarvisCyan.copy(alpha = 0.25f) else JarvisHudSurface.copy(alpha = 0.9f),
+                            shape = CircleShape,
+                            border = BorderStroke(1.dp, JarvisCyan.copy(alpha = 0.7f)),
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    viewModel.setFloatingWindowExpanded(!uiState.isFloatingWindowExpanded)
+                                }
+                                .testTag("floating_window_toggle_button")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.OpenInFull,
+                                    contentDescription = "Toggle Floating CaroLine Window",
+                                    tint = JarvisCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        // Single Settings Icon (houses all secondary functions)
+                        Surface(
+                            color = JarvisHudSurface.copy(alpha = 0.9f),
+                            shape = CircleShape,
+                            border = BorderStroke(1.2.dp, JarvisCyan.copy(alpha = 0.7f)),
+                            shadowElevation = 8.dp,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .clickable { showSettings = true }
+                                .testTag("top_settings_button")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Open CaroLine Settings Dashboard",
+                                    tint = AccentGold,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
                 }
 
-                // Optional Sensitive Action Confirmation Card (only visible when a sensitive action is pending)
+                // =====================================================================
+                // INTERACTIVE CARDS: SENSITIVE ACTION, CONTACT MATCHES, MESSAGE PREVIEW
+                // =====================================================================
                 AnimatedVisibility(
                     visible = uiState.pendingSensitiveAction != null,
                     enter = fadeIn(),
@@ -286,13 +356,42 @@ fun CaroLineMainScreen(
                     }
                 }
 
+                AnimatedVisibility(
+                    visible = uiState.matchedContacts.isNotEmpty(),
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    ContactMatchesSelectionCard(
+                        title = uiState.contactSearchTitle,
+                        contacts = uiState.matchedContacts,
+                        onSelectContact = { viewModel.selectMatchedContact(it) },
+                        onDismiss = { viewModel.clearMatchedContacts() }
+                    )
+                }
+
+                AnimatedVisibility(
+                    visible = uiState.pendingMessageDraft != null,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    uiState.pendingMessageDraft?.let { draft ->
+                        SmartMessagePreviewCard(
+                            draft = draft,
+                            onUpdateDraftText = { viewModel.updatePendingMessageDraftText(it) },
+                            onConfirmWhatsApp = { viewModel.confirmMessageDraftViaWhatsApp() },
+                            onConfirmSms = { viewModel.confirmMessageDraftViaSms() },
+                            onCancel = { viewModel.cancelMessageDraft() }
+                        )
+                    }
+                }
+
                 // =====================================================================
                 // CONTROL 2: AI AVATAR / ANIMATED AI CORE
                 // =====================================================================
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 240.dp, max = 305.dp),
+                        .heightIn(min = 210.dp, max = 285.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     if (uiState.isJarvisCoreMode) {
@@ -315,13 +414,14 @@ fun CaroLineMainScreen(
                 }
 
                 // =====================================================================
-                // CONTROL 3: LISTENING AND SPEAKING STATUS BAR
+                // CONTROL 3: LISTENING AND SPEAKING STATUS BAR (ALL ENGLISH LABELS)
                 // =====================================================================
                 ListeningAndSpeakingStatusBar(
                     liveState = uiState.liveState,
                     amplitude = if (uiState.isMicMuted) 0f else audioAmplitude,
                     isMicMuted = uiState.isMicMuted,
-                    activeWakeWord = uiState.wakeWordPhrase
+                    activeWakeWord = uiState.wakeWordPhrase,
+                    enableAnimations = uiState.performanceProfile.enableHighFpsAnimations
                 )
 
                 // =====================================================================
@@ -334,8 +434,19 @@ fun CaroLineMainScreen(
                     onTextCommandChange = { textCommandInput = it },
                     onSubmitTextCommand = {
                         if (textCommandInput.isNotBlank()) {
-                            viewModel.onUserPrompt(textCommandInput)
+                            val cmd = textCommandInput
                             textCommandInput = ""
+                            val lower = cmd.lowercase()
+                            val needsContacts = lower.contains("ending in") || lower.contains("contact") ||
+                                (lower.contains("call ") && !lower.any { it.isDigit() })
+                            if (needsContacts && ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.READ_CONTACTS
+                                ) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                            }
+                            viewModel.onUserPrompt(cmd)
                         }
                     },
                     modifier = Modifier
@@ -376,6 +487,39 @@ fun CaroLineMainScreen(
                 )
             }
 
+            // =========================================================================
+            // REQUIREMENT F: MOVABLE FLOATING CAROLINE BUBBLE & COMPACT FLOATING WINDOW
+            // =========================================================================
+            if (uiState.isFloatingBubbleEnabled) {
+                MovableFloatingCaroLineOverlay(
+                    isExpanded = uiState.isFloatingWindowExpanded,
+                    liveState = uiState.liveState,
+                    shortResponseSnippet = uiState.speechSnippet,
+                    onToggleExpand = {
+                        viewModel.setFloatingWindowExpanded(!uiState.isFloatingWindowExpanded)
+                    },
+                    onMicClick = {
+                        val hasAudioPermission = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.RECORD_AUDIO
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (hasAudioPermission) {
+                            viewModel.triggerCallSession()
+                        } else {
+                            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                    onSendTextCommand = { cmd ->
+                        viewModel.onUserPrompt(cmd)
+                    },
+                    onOpenFullSettings = {
+                        viewModel.setFloatingWindowExpanded(false)
+                        showSettings = true
+                    },
+                    modifier = Modifier.align(Alignment.TopEnd)
+                )
+            }
+
             // Floating Tool Execution Banner
             Box(
                 modifier = Modifier
@@ -388,7 +532,7 @@ fun CaroLineMainScreen(
                 )
             }
 
-            // Error Snackbar
+            // Error Snackbar (English labels)
             if (uiState.errorMessage != null) {
                 Snackbar(
                     modifier = Modifier
@@ -396,7 +540,7 @@ fun CaroLineMainScreen(
                         .padding(16.dp),
                     action = {
                         TextButton(onClick = { viewModel.clearError() }) {
-                            Text("ठीक है", color = PureWhite)
+                            Text("OK", color = PureWhite)
                         }
                     },
                     containerColor = AlertRed.copy(alpha = 0.94f),
@@ -410,8 +554,45 @@ fun CaroLineMainScreen(
 
     if (showSettings) {
         SettingsSheet(
+            // Requirement A: Performance Profiles
+            performanceProfile = uiState.performanceProfile,
+            isAutoPerformanceProfile = uiState.isAutoPerformanceProfile,
+            totalRamMb = uiState.totalRamMb,
+            availRamMb = uiState.availRamMb,
+            onSelectPerformanceProfile = { profile, auto ->
+                viewModel.setPerformanceProfile(profile, auto)
+            },
+            // Requirement B: Assistant Spoken Language Selector
+            spokenLanguageCode = uiState.spokenLanguageCode,
+            activeLanguage = uiState.activeLanguage,
+            isLanguageLocked = uiState.isLanguageLocked,
+            onSelectSpokenLanguage = { langCode ->
+                viewModel.setSpokenLanguage(langCode)
+            },
+            // Requirement C: Female Voice Studio (Real Installed Engines & Voices)
+            installedTtsEngines = uiState.installedTtsEngines,
+            availableDeviceVoices = uiState.availableDeviceVoices,
+            selectedTtsEnginePackage = uiState.selectedTtsEnginePackage,
+            selectedVoiceId = uiState.selectedVoiceId,
+            selectedVoice = uiState.selectedVoice,
+            voicePitch = uiState.voicePitch,
+            voiceSpeed = uiState.voiceSpeed,
+            isVoiceMuted = uiState.isVoiceMuted,
+            useOpenAiSpeechTts = uiState.useOpenAiTts,
+            openAiVoiceName = uiState.openAiTtsVoice,
+            onSelectTtsEnginePackage = { viewModel.selectTtsEnginePackage(it) },
+            onSelectDeviceVoice = { viewModel.selectDeviceVoice(it) },
+            onSelectVoice = { viewModel.setSelectedVoice(it) },
+            onVoicePitchChange = { viewModel.setVoicePitch(it) },
+            onVoiceSpeedChange = { viewModel.setVoiceSpeed(it) },
+            onToggleVoiceMute = { viewModel.toggleVoiceMute() },
+            onToggleOpenAiSpeechTts = { viewModel.setUseOpenAiTts(!uiState.useOpenAiTts) },
+            onSelectOpenAiVoiceName = { viewModel.setOpenAiTtsVoice(it) },
+            onPreviewVoice = { viewModel.previewFemaleVoice() },
+            // Requirement D: Managed AI Brain (Without Manual API Key Entry)
             selectedAiProvider = uiState.selectedAiProvider,
             autoFailoverEnabled = uiState.autoFailoverEnabled,
+            isManagedCloudConfigured = uiState.isManagedCloudConfigured,
             providerConfigs = uiState.providerConfigs,
             providerTestResults = uiState.providerTestResults,
             testingProvider = uiState.testingProvider,
@@ -422,23 +603,17 @@ fun CaroLineMainScreen(
             },
             onRemoveProviderKey = { viewModel.removeProviderCredential(it) },
             onTestProviderConnection = { viewModel.testProviderConnection(it) },
-            // Female Voice Settings 2.9
-            selectedVoice = uiState.selectedVoice,
-            voicePitch = uiState.voicePitch,
-            voiceSpeed = uiState.voiceSpeed,
-            isVoiceMuted = uiState.isVoiceMuted,
-            useOpenAiSpeechTts = uiState.useOpenAiTts,
-            openAiVoiceName = uiState.openAiTtsVoice,
-            onSelectVoice = { viewModel.setSelectedVoice(it) },
-            onVoicePitchChange = { viewModel.setVoicePitch(it) },
-            onVoiceSpeedChange = { viewModel.setVoiceSpeed(it) },
-            onToggleVoiceMute = { viewModel.toggleVoiceMute() },
-            onToggleOpenAiSpeechTts = { viewModel.setUseOpenAiTts(!uiState.useOpenAiTts) },
-            onSelectOpenAiVoiceName = { viewModel.setOpenAiTtsVoice(it) },
-            onPreviewVoice = { viewModel.previewFemaleVoice() },
-            // Language & Wake Word
-            activeLanguage = uiState.activeLanguage,
-            isLanguageLocked = uiState.isLanguageLocked,
+            // Requirement F: Floating CaroLine Window
+            isFloatingBubbleEnabled = uiState.isFloatingBubbleEnabled,
+            canDrawSystemOverlays = uiState.canDrawSystemOverlays,
+            onToggleFloatingBubble = { viewModel.toggleFloatingBubble() },
+            // Requirement K & L: Live Weather, Internet Data Usage & Adaptive AI
+            latestWeatherReport = uiState.latestWeatherReport,
+            networkAndDataReport = uiState.networkAndDataReport,
+            adaptiveAiSnapshot = uiState.adaptiveAiSnapshot,
+            onRefreshWeather = { city -> viewModel.refreshLiveWeather(city) },
+            onRefreshTelemetry = { viewModel.refreshDeviceTelemetry() },
+            // Wake Word & Background Service
             wakeWordEnabled = uiState.isWakeWordEnabled,
             selectedWakeWord = uiState.wakeWordPhrase,
             isHandsFreeMode = uiState.isHandsFreeMode,
@@ -499,82 +674,528 @@ fun CaroLineMainScreen(
 }
 
 /**
- * Control 3: Listening and Speaking Status Pill + Live Waveform.
+ * Requirement E: Interactive Contact Selection Card for partial digit search or multiple matches.
+ */
+@Composable
+private fun ContactMatchesSelectionCard(
+    title: String,
+    contacts: List<DeviceContactItem>,
+    onSelectContact: (DeviceContactItem) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        color = JarvisHudSurface.copy(alpha = 0.96f),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.2.dp, JarvisCyan.copy(alpha = 0.8f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .testTag("contact_matches_card")
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title.ifBlank { "Select a Contact to Call (${contacts.size})" },
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = AccentGold,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close Contact Matches",
+                        tint = MutedVioletGray,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 150.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                contacts.forEach { contact ->
+                    Surface(
+                        color = Color(0xFF07152B),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, JarvisHudBorder),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectContact(contact) }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = contact.displayName,
+                                    color = PureWhite,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                                Text(
+                                    text = contact.phoneNumber,
+                                    color = JarvisCyan,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Surface(
+                                color = JarvisEmerald.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(50),
+                                border = BorderStroke(1.dp, JarvisEmerald)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Call,
+                                        contentDescription = "Dial Contact",
+                                        tint = JarvisEmerald,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Dial",
+                                        color = JarvisEmerald,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Requirement G: Smart Message Preview & Confirmation Card before sending via WhatsApp or SMS.
+ */
+@Composable
+private fun SmartMessagePreviewCard(
+    draft: MessageDraftPreview,
+    onUpdateDraftText: (String) -> Unit,
+    onConfirmWhatsApp: () -> Unit,
+    onConfirmSms: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Surface(
+        color = JarvisHudSurface.copy(alpha = 0.96f),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.2.dp, AccentGold.copy(alpha = 0.85f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .testTag("smart_message_preview_card")
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "SMART MESSAGE WRITER • PREVIEW",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = AccentGold
+                    )
+                    Text(
+                        text = "Recipient: ${draft.recipientName.ifBlank { "Select in App" }} • Category: ${draft.category.labelEn}",
+                        fontSize = 11.sp,
+                        color = JarvisCyan
+                    )
+                }
+                IconButton(
+                    onClick = onCancel,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cancel Message Draft",
+                        tint = MutedVioletGray,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = draft.draftedText,
+                onValueChange = onUpdateDraftText,
+                label = { Text("Polished Message (Edit before sending)", fontSize = 11.sp) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("message_draft_input"),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = JarvisCyan,
+                    unfocusedBorderColor = JarvisHudBorder,
+                    focusedTextColor = PureWhite,
+                    unfocusedTextColor = PureWhite
+                ),
+                maxLines = 3
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onConfirmWhatsApp,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = JarvisEmerald,
+                        contentColor = Color.Black
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .testTag("confirm_whatsapp_button")
+                ) {
+                    Text("Send WhatsApp", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = onConfirmSms,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = JarvisCyan,
+                        contentColor = Color.Black
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .testTag("confirm_sms_button")
+                ) {
+                    Text("Send SMS", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+
+                OutlinedButton(
+                    onClick = onCancel,
+                    border = BorderStroke(1.dp, MutedVioletGray),
+                    modifier = Modifier.height(42.dp)
+                ) {
+                    Text("Cancel", color = PureWhite, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Requirement F: Movable Floating CaroLine Bubble and Compact Floating Window with all 6 controls:
+ * 1. Microphone button
+ * 2. Text command field
+ * 3. Send button
+ * 4. Short AI response
+ * 5. Close button
+ * 6. Expand assistant button
+ */
+@Composable
+private fun MovableFloatingCaroLineOverlay(
+    isExpanded: Boolean,
+    liveState: LiveState,
+    shortResponseSnippet: String,
+    onToggleExpand: () -> Unit,
+    onMicClick: () -> Unit,
+    onSendTextCommand: (String) -> Unit,
+    onOpenFullSettings: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var offsetX by remember { mutableFloatStateOf(-12f) }
+    var offsetY by remember { mutableFloatStateOf(160f) }
+    var floatingInput by remember { mutableStateOf("") }
+
+    Box(
+        modifier = modifier
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    offsetX = (offsetX + dragAmount.x).coerceIn(-700f, 40f)
+                    offsetY = (offsetY + dragAmount.y).coerceIn(60f, 1200f)
+                }
+            }
+    ) {
+        if (!isExpanded) {
+            // Movable Floating CaroLine Bubble
+            Surface(
+                color = Color(0xFF0A192F).copy(alpha = 0.95f),
+                shape = CircleShape,
+                border = BorderStroke(2.dp, if (liveState == LiveState.LISTENING) JarvisEmerald else JarvisCyan),
+                shadowElevation = 12.dp,
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .clickable { onToggleExpand() }
+                    .testTag("movable_floating_bubble")
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.GraphicEq,
+                            contentDescription = "Open Floating CaroLine Assistant",
+                            tint = AccentGold,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = "AI",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = JarvisCyan
+                        )
+                    }
+                }
+            }
+        } else {
+            // Compact Floating CaroLine Window with 6 controls
+            Surface(
+                color = Color(0xFF071326).copy(alpha = 0.97f),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.5.dp, JarvisCyan),
+                shadowElevation = 16.dp,
+                modifier = Modifier
+                    .width(300.dp)
+                    .padding(8.dp)
+                    .testTag("compact_floating_window")
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "CAROLINE FLOATING AI",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = AccentGold
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // Control 6: Expand assistant button
+                            IconButton(
+                                onClick = onOpenFullSettings,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .testTag("floating_expand_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.OpenInFull,
+                                    contentDescription = "Expand Assistant Dashboard",
+                                    tint = JarvisCyan,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            // Control 5: Close button
+                            IconButton(
+                                onClick = onToggleExpand,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .testTag("floating_close_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close Floating Window",
+                                    tint = PureWhite,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Control 4: Short AI response
+                    Surface(
+                        color = Color(0xFF0D213F),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = shortResponseSnippet,
+                            fontSize = 12.sp,
+                            color = PureWhite,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .testTag("floating_short_response")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Controls 1, 2, 3: Microphone button, Text command field, Send button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Control 1: Microphone button
+                        IconButton(
+                            onClick = onMicClick,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (liveState == LiveState.LISTENING) JarvisEmerald.copy(alpha = 0.25f)
+                                    else AccentGold.copy(alpha = 0.2f)
+                                )
+                                .testTag("floating_mic_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Floating Voice Command",
+                                tint = if (liveState == LiveState.LISTENING) JarvisEmerald else AccentGold,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // Control 2: Text command field
+                        OutlinedTextField(
+                            value = floatingInput,
+                            onValueChange = { floatingInput = it },
+                            placeholder = {
+                                Text("Ask CaroLine...", fontSize = 11.sp, color = MutedVioletGray)
+                            },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = JarvisCyan,
+                                unfocusedBorderColor = JarvisHudBorder,
+                                focusedTextColor = PureWhite,
+                                unfocusedTextColor = PureWhite
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("floating_text_input")
+                        )
+
+                        // Control 3: Send button
+                        IconButton(
+                            onClick = {
+                                if (floatingInput.isNotBlank()) {
+                                    onSendTextCommand(floatingInput)
+                                    floatingInput = ""
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(JarvisCyan)
+                                .testTag("floating_send_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send Floating Command",
+                                tint = Color.Black,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Control 3: Listening and Speaking Status Bar with real-time waveform (English UI labels).
  */
 @Composable
 private fun ListeningAndSpeakingStatusBar(
     liveState: LiveState,
     amplitude: Float,
     isMicMuted: Boolean,
-    activeWakeWord: String
+    activeWakeWord: String,
+    enableAnimations: Boolean = true
 ) {
     val statusText = when {
-        isMicMuted && liveState != LiveState.DISCONNECTED -> "माइक्रोफ़ोन म्यूट है (Muted)"
-        liveState == LiveState.SPEAKING -> "कैरोलाइन बोल रही है (Speaking in Hindi)..."
-        liveState == LiveState.LISTENING -> "कैरोलाइन सुन रही है • बोलिए बॉस ($activeWakeWord)"
-        liveState == LiveState.THINKING -> "कैरोलाइन सोच रही है (Processing)..."
-        liveState == LiveState.CONNECTING || liveState == LiveState.RECONNECTING -> "कनेक्ट हो रहा है..."
-        liveState == LiveState.ERROR -> "सिस्टम तैयार है — फिर से बोलें"
-        else -> "वॉइस मोड तैयार है • माइक दबाएं या बोलें \"$activeWakeWord\""
+        isMicMuted -> "MICROPHONE MUTED"
+        liveState == LiveState.SPEAKING -> "CAROLINE SPEAKING..."
+        liveState == LiveState.THINKING || liveState == LiveState.CONNECTING -> "CAROLINE THINKING..."
+        liveState == LiveState.LISTENING -> "LISTENING • SAY \"$activeWakeWord\""
+        liveState == LiveState.ERROR -> "VOICE ENGINE READY — TAP MIC TO RETRY"
+        else -> "STANDBY • TAP MICROPHONE TO SPEAK"
     }
 
-    val statusAccent = when (liveState) {
-        LiveState.SPEAKING -> AccentGold
-        LiveState.LISTENING -> JarvisCyan
-        LiveState.THINKING, LiveState.CONNECTING -> JarvisElectricBlue
-        LiveState.ERROR -> AlertRed
-        else -> JarvisCyan.copy(alpha = 0.75f)
+    val statusColor = when {
+        isMicMuted -> AlertRed
+        liveState == LiveState.SPEAKING -> AccentGold
+        liveState == LiveState.THINKING || liveState == LiveState.CONNECTING -> SoftLilac
+        liveState == LiveState.LISTENING -> JarvisEmerald
+        else -> JarvisCyan
     }
 
-    Surface(
-        color = JarvisHudSurface.copy(alpha = 0.88f),
-        shape = RoundedCornerShape(50),
-        border = BorderStroke(1.dp, statusAccent.copy(alpha = 0.7f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("listening_speaking_status_bar")
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Surface(
+            color = statusColor.copy(alpha = 0.14f),
+            shape = RoundedCornerShape(50),
+            border = BorderStroke(1.dp, statusColor.copy(alpha = 0.7f)),
+            modifier = Modifier.testTag("listening_speaking_status_pill")
         ) {
             Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                horizontalArrangement = Arrangement.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.GraphicEq,
-                    contentDescription = null,
-                    tint = statusAccent,
-                    modifier = Modifier.size(18.dp)
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(statusColor)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = statusText,
                     fontSize = 12.sp,
-                    color = PureWhite,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = statusColor,
+                    fontWeight = FontWeight.Bold
                 )
             }
+        }
 
-            Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
+        if (enableAnimations) {
             AudioWaveform(
                 liveState = liveState,
                 amplitude = amplitude,
                 modifier = Modifier
-                    .width(72.dp)
-                    .height(20.dp)
+                    .fillMaxWidth(0.78f)
+                    .height(26.dp)
             )
         }
     }
 }
 
 /**
- * Control 4: Single Unified Glassmorphism Conversation Area.
+ * Control 4: Single Conversation Area Card (English UI placeholder & labels).
  */
 @Composable
 private fun SingleConversationAreaCard(
@@ -586,58 +1207,54 @@ private fun SingleConversationAreaCard(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = JarvisHudSurface.copy(alpha = 0.86f),
+        color = JarvisHudSurface.copy(alpha = 0.88f),
         shape = RoundedCornerShape(22.dp),
-        border = BorderStroke(
-            width = 1.2.dp,
-            brush = Brush.horizontalGradient(
-                listOf(
-                    JarvisCyan.copy(alpha = 0.75f),
-                    AccentGold.copy(alpha = 0.65f),
-                    JarvisCyan.copy(alpha = 0.75f)
-                )
-            )
-        ),
-        shadowElevation = 12.dp,
+        border = BorderStroke(1.2.dp, JarvisHudBorder),
+        shadowElevation = 10.dp,
         modifier = modifier.testTag("single_conversation_area")
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            if (recentMessages.isNotEmpty()) {
+            // Active response display
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp, max = 120.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 val lastUserMsg = recentMessages.lastOrNull { it.role == "user" }
-                if (lastUserMsg != null) {
+                if (lastUserMsg != null && !speechSnippet.startsWith("🗣️")) {
                     Text(
-                        text = "बॉस: \"${lastUserMsg.text}\"",
-                        fontSize = 12.sp,
-                        color = JarvisCyan,
-                        fontWeight = FontWeight.SemiBold,
+                        text = "You: \"${lastUserMsg.text}\"",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = JarvisCyan.copy(alpha = 0.85f),
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                 }
+
+                Text(
+                    text = speechSnippet,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 22.sp
+                    ),
+                    color = PureWhite,
+                    textAlign = TextAlign.Center
+                )
             }
 
-            Text(
-                text = speechSnippet,
-                style = MaterialTheme.typography.bodyMedium,
-                color = PureWhite,
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Medium,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag("speech_bubble_card")
-            )
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Subtle inline command input inside the same single conversation card
+            // Compact command input inside the same conversation card
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -648,24 +1265,26 @@ private fun SingleConversationAreaCard(
                     onValueChange = onTextCommandChange,
                     placeholder = {
                         Text(
-                            text = "हिंदी, Hinglish या English में कमांड लिखें (जैसे: गाना चलाओ)...",
-                            fontSize = 11.sp,
-                            color = MutedVioletGray
+                            text = "Type a command (Call Rahul, Weather, Message...)",
+                            fontSize = 12.sp,
+                            color = MutedVioletGray,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     },
                     singleLine = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("hud_command_input"),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = JarvisCyan,
-                        unfocusedBorderColor = JarvisHudBorder.copy(alpha = 0.45f),
+                        unfocusedBorderColor = JarvisHudBorder,
                         focusedTextColor = PureWhite,
                         unfocusedTextColor = PureWhite,
-                        focusedContainerColor = JarvisDeepNavy.copy(alpha = 0.7f),
-                        unfocusedContainerColor = JarvisDeepNavy.copy(alpha = 0.5f)
+                        focusedContainerColor = Color(0xFF050E1D),
+                        unfocusedContainerColor = Color(0xFF050E1D)
                     ),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("command_text_input")
                 )
 
                 IconButton(
@@ -678,7 +1297,7 @@ private fun SingleConversationAreaCard(
                                 listOf(JarvisCyan, JarvisElectricBlue)
                             )
                         )
-                        .testTag("hud_command_send_button")
+                        .testTag("send_command_button")
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
@@ -692,7 +1311,7 @@ private fun SingleConversationAreaCard(
 }
 
 /**
- * Control 5: Glowing Cyan & Golden Yellow JARVIS Microphone Button.
+ * Control 5: Primary Glowing JARVIS Microphone Button (English UI labels).
  */
 @Composable
 private fun PrimaryJarvisMicrophoneButton(
@@ -701,63 +1320,58 @@ private fun PrimaryJarvisMicrophoneButton(
     onMicClick: () -> Unit
 ) {
     val isSessionActive = liveState != LiveState.DISCONNECTED && liveState != LiveState.ERROR
+
     val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = if (isSessionActive) 1.08f else 1.03f,
+        targetValue = if (liveState == LiveState.LISTENING) 1.12f else 1.04f,
         animationSpec = infiniteRepeatable(
             animation = tween(1100, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "mic_scale"
+        label = "pulse_scale"
     )
 
-    val ringBrush = if (isSessionActive) {
-        Brush.sweepGradient(listOf(AccentGold, JarvisCyan, AccentGold))
-    } else {
-        Brush.sweepGradient(listOf(JarvisCyan, JarvisElectricBlue, AccentGold, JarvisCyan))
+    val buttonBrush = when {
+        isMicMuted -> Brush.linearGradient(listOf(AlertRed, Color(0xFFB71C1C)))
+        liveState == LiveState.SPEAKING -> Brush.linearGradient(listOf(AccentGold, HotMagentaPink))
+        isSessionActive -> Brush.linearGradient(listOf(JarvisCyan, JarvisElectricBlue))
+        else -> Brush.linearGradient(listOf(AccentGold, Color(0xFFFF8F00)))
     }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(vertical = 4.dp)
+        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
     ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(76.dp)
-                .scale(pulseScale)
+                .scale(if (isSessionActive) pulseScale else 1f)
                 .shadow(
-                    elevation = if (isSessionActive) 22.dp else 12.dp,
+                    elevation = 18.dp,
                     shape = CircleShape,
-                    spotColor = if (isSessionActive) AccentGold else JarvisCyan
+                    ambientColor = if (isSessionActive) JarvisCyan else AccentGold,
+                    spotColor = if (isSessionActive) JarvisCyan else AccentGold
                 )
                 .clip(CircleShape)
-                .background(
-                    if (isSessionActive) {
-                        Brush.radialGradient(
-                            colors = listOf(
-                                AccentGold.copy(alpha = 0.92f),
-                                JarvisCyan.copy(alpha = 0.85f)
-                            )
-                        )
-                    } else {
-                        Brush.radialGradient(
-                            colors = listOf(
-                                JarvisCyan.copy(alpha = 0.9f),
-                                JarvisElectricBlue.copy(alpha = 0.9f)
-                            )
-                        )
-                    }
+                .background(buttonBrush)
+                .border(
+                    width = 2.dp,
+                    color = PureWhite.copy(alpha = 0.85f),
+                    shape = CircleShape
                 )
-                .border(width = 2.5.dp, brush = ringBrush, shape = CircleShape)
-                .clickable(onClick = onMicClick)
-                .testTag("start_end_call_button")
+                .clickable { onMicClick() }
+                .testTag("central_call_mic_button")
         ) {
             Icon(
-                imageVector = if (isMicMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                contentDescription = if (isSessionActive) "Stop CaroLine Voice Session" else "Start CaroLine Voice Session",
-                tint = Color(0xFF0A0E17),
+                imageVector = when {
+                    isMicMuted -> Icons.Default.MicOff
+                    liveState == LiveState.SPEAKING -> Icons.Default.GraphicEq
+                    else -> Icons.Default.Mic
+                },
+                contentDescription = if (isSessionActive) "Stop Voice Mode" else "Start CaroLine Voice Mode",
+                tint = Color.Black,
                 modifier = Modifier.size(34.dp)
             )
         }
@@ -765,10 +1379,10 @@ private fun PrimaryJarvisMicrophoneButton(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = if (isSessionActive) "सक्रिय • रोकने के लिए टैप करें" else "बोलने के लिए माइक दबाएं",
+            text = if (isSessionActive) "Listening • Tap to Pause" else "Tap to Speak with CaroLine",
             fontSize = 11.sp,
-            color = if (isSessionActive) AccentGold else JarvisCyan,
-            fontWeight = FontWeight.Bold
+            color = MutedVioletGray,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
@@ -780,62 +1394,57 @@ private fun SensitiveActionConfirmationCard(
     onCancel: () -> Unit
 ) {
     Surface(
-        color = Color(0xFF2B1228),
+        color = AlertRed.copy(alpha = 0.16f),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.5.dp, HotMagentaPink),
+        border = BorderStroke(1.2.dp, AlertRed),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .testTag("sensitive_action_confirmation_card")
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.WarningAmber,
-                    contentDescription = "Sensitive Action",
-                    tint = HotMagentaPink,
-                    modifier = Modifier.size(18.dp)
+                    contentDescription = "Sensitive Action Confirmation",
+                    tint = AccentGold,
+                    modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = pendingAction.titleBn,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = PureWhite,
-                    fontWeight = FontWeight.Bold
+                    text = "SECURITY CONFIRMATION: ${pendingAction.titleBn}",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 12.sp,
+                    color = PureWhite
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = pendingAction.descriptionBn,
-                style = MaterialTheme.typography.bodySmall,
+                fontSize = 12.sp,
                 color = SoftLilac
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = onConfirm,
-                    colors = ButtonDefaults.buttonColors(containerColor = JarvisEmerald),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("confirm_sensitive_action_button")
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = JarvisEmerald,
+                        contentColor = Color.Black
+                    ),
+                    modifier = Modifier.height(40.dp)
                 ) {
-                    Text("हाँ, अनुमति दें", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("Confirm", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
                 OutlinedButton(
                     onClick = onCancel,
-                    border = BorderStroke(1.dp, MutedVioletGray),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("cancel_sensitive_action_button")
+                    border = BorderStroke(1.dp, PureWhite.copy(alpha = 0.6f)),
+                    modifier = Modifier.height(40.dp)
                 ) {
-                    Text("रद्द करें", color = PureWhite, fontSize = 12.sp)
+                    Text("Cancel", color = PureWhite, fontSize = 12.sp)
                 }
             }
         }
     }
 }
+
+typealias MahiMainScreen = Unit

@@ -26,20 +26,20 @@ enum class AiProviderType(
     val defaultModel: String
 ) {
     GOOGLE_GEMINI(
-        displayName = "Google Gemini API",
+        displayName = "Managed Cloud Gemini AI",
         shortBadge = "GEMINI",
         defaultEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
         defaultModel = "gemini-3.8-flash"
     ),
     OPENAI_CHATGPT(
-        displayName = "OpenAI ChatGPT API",
-        shortBadge = "CHATGPT",
+        displayName = "Managed Secondary Cloud AI",
+        shortBadge = "CLOUD AI",
         defaultEndpoint = "https://api.openai.com/v1/chat/completions",
         defaultModel = "gpt-4o-mini"
     ),
     OPENROUTER_CUSTOM(
-        displayName = "OpenRouter / Custom Cloud AI",
-        shortBadge = "OPENROUTER",
+        displayName = "Managed Backup AI Router",
+        shortBadge = "ROUTER",
         defaultEndpoint = "https://openrouter.ai/api/v1/chat/completions",
         defaultModel = "meta-llama/llama-3.3-70b-instruct"
     )
@@ -86,14 +86,15 @@ data class AiRouterResponse(
 )
 
 /**
- * Unified AI Provider Manager for CaroLine AI 2.9 – Ultimate Smart JARVIS:
- * 1. Google Gemini API (Firebase AI Logic + Gemini REST / Live API)
- * 2. OpenAI ChatGPT API (+ Real OpenAI Neural Speech /v1/audio/speech)
- * 3. OpenRouter Cloud AI API
+ * Requirement D: Managed AI Brain Without Manual API Key Entry for CaroLine AI A3.2.
  *
- * Includes API key configuration, provider selection, real connection testing,
- * automatic fallback, context-aware Hindi conversation, Smart Memory injection,
- * and request timeout handling.
+ * - Uses Firebase AI Logic (`Firebase.ai.generativeModel("gemini-3.8-flash")`) and managed backend credentials
+ *   without requiring ordinary users to paste an API key.
+ * - Never hardcodes secret API keys in APK source code.
+ * - Enforces owner-selected spoken language:
+ *   1. Hindi (`hi-IN`) by default
+ *   2. Bengali (`bn-IN`) as an alternative
+ *   3. English (`en-IN`) as an optional language
  */
 class MultiAiProviderRouter(private val context: Context) {
 
@@ -112,7 +113,7 @@ class MultiAiProviderRouter(private val context: Context) {
         Firebase.ai.generativeModel("gemini-3.8-flash")
     }
 
-    private fun isFirebaseConfigured(): Boolean {
+    fun isFirebaseConfigured(): Boolean {
         return try {
             FirebaseApp.getApps(context).isNotEmpty()
         } catch (_: Exception) {
@@ -125,35 +126,35 @@ class MultiAiProviderRouter(private val context: Context) {
         activeLanguageName: String,
         smartMemories: List<String> = emptyList()
     ): String {
-        val languageDirective = if (isLanguageLockedToHindi) {
-            "CRITICAL LANGUAGE RULE: Your permanent default language is Hindi (हिन्दी - hi-IN). " +
-                "You MUST ALWAYS reply in natural, respectful, conversational Hindi (देवनागरी लिपि), " +
-                "even if the user speaks in Hindi, Hinglish, or English. " +
-                "Never switch your response language unless authorized by the owner in Settings."
-        } else {
-            "Preferred language: $activeLanguageName."
+        val lowerLang = activeLanguageName.lowercase()
+        val languageDirective = when {
+            lowerLang.contains("bengali") || lowerLang.contains("বাংলা") || lowerLang.startsWith("bn") ->
+                "CRITICAL LANGUAGE RULE: The owner has selected Bengali (বাংলা - bn-IN). " +
+                    "You MUST understand Hindi, Bengali, Hinglish, and English commands, " +
+                    "and you MUST ALWAYS reply in natural, respectful Bengali (বাংলা লিপি). Speak ONLY Bengali."
+            lowerLang.contains("english") || lowerLang.startsWith("en") ->
+                "CRITICAL LANGUAGE RULE: The owner has selected English (en-IN). " +
+                    "You MUST understand Hindi, Bengali, Hinglish, and English commands, " +
+                    "and you MUST ALWAYS reply in clear, natural English. Speak ONLY English."
+            else ->
+                "CRITICAL LANGUAGE RULE: Your default spoken language is Hindi (हिन्दी - hi-IN). " +
+                    "You MUST understand Hindi, Bengali, Hinglish, and English commands, " +
+                    "and you MUST ALWAYS reply in natural, respectful Hindi (देवनागरी लिपि). Speak ONLY Hindi."
         }
 
         val memoryBlock = if (smartMemories.isNotEmpty()) {
             "\nUSER SMART MEMORY (Remember these facts about Boss): " + smartMemories.joinToString("; ")
         } else ""
 
-        return "You are CaroLine (कैरोलाइन), version 2.9 Ultimate Smart JARVIS, an intelligent, friendly, smart, slightly playful, and professional female AI assistant. " +
-            "Address the user respectfully as 'बॉस' (Boss) in natural Hindi. " +
-            "Speak naturally like a real human assistant. " +
-            "Give direct, helpful answers instead of unnecessary introductions. " +
-            "Never repeat battery, network, or engine status after every conversation. " +
-            "Do not repeat welcome messages unnecessarily. " +
-            "Keep spoken replies concise and clear (1 to 3 sentences) without markdown symbols (*, #) so they sound natural in Female Text-To-Speech. " +
+        return "You are CaroLine (कैरोलाइन / ক্যারোলাইন), version A3.2 Ultimate Android Smart JARVIS, an intelligent, friendly, natural, and respectful female AI assistant. " +
+            "Address the user respectfully as Boss (बॉस / বস). " +
+            "Give short, direct, and relevant answers (1 to 3 sentences). " +
+            "Do NOT repeat welcome messages, battery status, or network status unnecessarily. " +
+            "Do not use markdown symbols (*, #) so your response sounds smooth in Female Text-To-Speech. " +
             languageDirective +
             memoryBlock
     }
 
-    /**
-     * Real OpenAI Neural Text-to-Speech generation (`POST https://api.openai.com/v1/audio/speech`).
-     * Used ONLY when a valid OpenAI API key is configured and the user selects OpenAI Neural Voice.
-     * Never fakes or mislabels local Android TTS as ChatGPT voice.
-     */
     suspend fun generateOpenAiSpeechMp3(
         apiKey: String,
         text: String,
@@ -187,25 +188,19 @@ class MultiAiProviderRouter(private val context: Context) {
 
             httpClient.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    Log.w(TAG, "OpenAI TTS HTTP ${resp.code}")
                     return@withContext null
                 }
                 val bytes = resp.body?.bytes()
                 if (bytes != null && bytes.size > 128) bytes else null
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "OpenAI speech synthesis failed: ${e.message}")
+        } catch (_: Exception) {
             null
         }
     }
 
-    /**
-     * Tests an AI Provider connection genuinely over the network.
-     * Never pretends a connection succeeds without valid credentials.
-     */
     suspend fun testProviderConnection(config: ProviderConfig): ProviderTestResult = withContext(Dispatchers.IO) {
         val startMs = System.currentTimeMillis()
-        val testPrompt = "नमस्ते कैरोलाइन! एक छोटे वाक्य में हिंदी में उत्तर दो।"
+        val testPrompt = "Reply in one short sentence confirming CaroLine AI A3.2 cloud connection."
 
         try {
             when (config.providerType) {
@@ -215,13 +210,13 @@ class MultiAiProviderRouter(private val context: Context) {
                             providerType = config.providerType,
                             isSuccess = false,
                             latencyMs = 0L,
-                            statusMessage = "वैध Gemini API Key दर्ज नहीं है (No valid API key configured)।"
+                            statusMessage = "Managed Cloud AI not provisioned yet; Smart Local Engine is active."
                         )
                     }
 
                     val reply = callGeminiProvider(
                         config = config,
-                        systemPrompt = "Reply in one short natural Hindi sentence.",
+                        systemPrompt = "Reply in one short sentence.",
                         history = emptyList(),
                         userPrompt = testPrompt
                     )
@@ -231,14 +226,14 @@ class MultiAiProviderRouter(private val context: Context) {
                             providerType = config.providerType,
                             isSuccess = true,
                             latencyMs = elapsed,
-                            statusMessage = "कनेक्शन सफल (${elapsed}ms): \"${reply.take(60)}\""
+                            statusMessage = "Connected (${elapsed}ms): \"${reply.take(60)}\""
                         )
                     } else {
                         ProviderTestResult(
                             providerType = config.providerType,
                             isSuccess = false,
                             latencyMs = elapsed,
-                            statusMessage = "Gemini से खाली उत्तर मिला या API Key अमान्य है।"
+                            statusMessage = "Cloud service returned an empty response; using local fallback."
                         )
                     }
                 }
@@ -250,13 +245,13 @@ class MultiAiProviderRouter(private val context: Context) {
                             providerType = config.providerType,
                             isSuccess = false,
                             latencyMs = 0L,
-                            statusMessage = "${config.providerType.displayName} के लिए वैध API Key दर्ज नहीं है।"
+                            statusMessage = "Managed backend credentials not set for ${config.providerType.displayName}."
                         )
                     }
 
                     val reply = callOpenAiCompatibleProvider(
                         config = config,
-                        systemPrompt = "Reply in one short natural Hindi sentence.",
+                        systemPrompt = "Reply in one short sentence.",
                         history = emptyList(),
                         userPrompt = testPrompt
                     )
@@ -266,14 +261,14 @@ class MultiAiProviderRouter(private val context: Context) {
                             providerType = config.providerType,
                             isSuccess = true,
                             latencyMs = elapsed,
-                            statusMessage = "कनेक्शन सफल (${elapsed}ms): \"${reply.take(60)}\""
+                            statusMessage = "Connected (${elapsed}ms): \"${reply.take(60)}\""
                         )
                     } else {
                         ProviderTestResult(
                             providerType = config.providerType,
                             isSuccess = false,
                             latencyMs = elapsed,
-                            statusMessage = "${config.providerType.displayName} कनेक्शन विफल रहा।"
+                            statusMessage = "${config.providerType.displayName} connection failed."
                         )
                     }
                 }
@@ -286,15 +281,11 @@ class MultiAiProviderRouter(private val context: Context) {
                 providerType = config.providerType,
                 isSuccess = false,
                 latencyMs = elapsed,
-                statusMessage = "त्रुटि: ${e.localizedMessage ?: "Connection failed"}"
+                statusMessage = "Offline / Local Mode Active (${e.localizedMessage ?: "No cloud route"})"
             )
         }
     }
 
-    /**
-     * Routes a natural-language query across the Three AI Brain System with automatic failover,
-     * retry handling, Smart Memory context, and multi-turn conversation history.
-     */
     suspend fun generateResponse(
         userPrompt: String,
         history: List<ConversationMessage>,
@@ -322,7 +313,7 @@ class MultiAiProviderRouter(private val context: Context) {
         for (providerType in providerOrder) {
             val config = configs[providerType] ?: ProviderConfig(providerType)
             val canAttempt = when (providerType) {
-                AiProviderType.GOOGLE_GEMINI -> config.hasValidKey() || isFirebaseConfigured()
+                AiProviderType.GOOGLE_GEMINI -> isFirebaseConfigured() || config.hasValidKey()
                 AiProviderType.OPENAI_CHATGPT,
                 AiProviderType.OPENROUTER_CUSTOM -> config.hasValidKey()
             }
@@ -333,7 +324,7 @@ class MultiAiProviderRouter(private val context: Context) {
 
             for (attempt in 1..2) {
                 try {
-                    val reply = withTimeout(25_000L) {
+                    val reply = withTimeout(30_000L) {
                         when (providerType) {
                             AiProviderType.GOOGLE_GEMINI -> callGeminiProvider(
                                 config = config,
@@ -368,7 +359,7 @@ class MultiAiProviderRouter(private val context: Context) {
                     Log.w(TAG, "${providerType.displayName} failed on attempt $attempt: ${e.message}")
                     errors.add("${providerType.shortBadge}: ${e.localizedMessage ?: "Error"}")
                     if (attempt == 1) {
-                        delay(300)
+                        delay(250)
                     }
                 }
             }
@@ -389,6 +380,34 @@ class MultiAiProviderRouter(private val context: Context) {
         history: List<ConversationMessage>,
         userPrompt: String
     ): String? {
+        // 1. Primary Managed Firebase AI Logic (No manual API key required)
+        if (isFirebaseConfigured()) {
+            try {
+                val contextTranscript = buildString {
+                    appendLine(systemPrompt)
+                    if (history.isNotEmpty()) {
+                        appendLine("\nRecent Conversation Context:")
+                        history.takeLast(6).forEach { m ->
+                            appendLine("${m.role}: ${m.text}")
+                        }
+                    }
+                    appendLine("\nUser: $userPrompt")
+                }
+                val response = withTimeout(35_000L) {
+                    firebaseGeminiModel.generateContent(contextTranscript)
+                }
+                val text = response.text?.trim()
+                if (!text.isNullOrEmpty()) {
+                    return text
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Firebase AI Logic notice, checking managed BuildConfig fallback: ${e.message}")
+            }
+        }
+
+        // 2. Managed BuildConfig / Backend Key fallback if present
         if (config.hasValidKey()) {
             val endpoint = config.endpointUrl.trim().ifBlank {
                 AiProviderType.GOOGLE_GEMINI.defaultEndpoint
@@ -402,25 +421,19 @@ class MultiAiProviderRouter(private val context: Context) {
             }
 
             val contentsArray = JSONArray()
-            history.takeLast(8).forEach { msg ->
+            history.takeLast(6).forEach { msg ->
                 val geminiRole = if (msg.role == "user") "user" else "model"
                 contentsArray.put(
                     JSONObject().apply {
                         put("role", geminiRole)
-                        put(
-                            "parts",
-                            JSONArray().put(JSONObject().put("text", msg.text))
-                        )
+                        put("parts", JSONArray().put(JSONObject().put("text", msg.text)))
                     }
                 )
             }
             contentsArray.put(
                 JSONObject().apply {
                     put("role", "user")
-                    put(
-                        "parts",
-                        JSONArray().put(JSONObject().put("text", userPrompt))
-                    )
+                    put("parts", JSONArray().put(JSONObject().put("text", userPrompt)))
                 }
             )
 
@@ -436,7 +449,7 @@ class MultiAiProviderRouter(private val context: Context) {
                     "generationConfig",
                     JSONObject().apply {
                         put("temperature", 0.7)
-                        put("maxOutputTokens", 350)
+                        put("maxOutputTokens", 300)
                     }
                 )
             }
@@ -466,23 +479,6 @@ class MultiAiProviderRouter(private val context: Context) {
             }
         }
 
-        if (isFirebaseConfigured()) {
-            val contextTranscript = buildString {
-                appendLine(systemPrompt)
-                if (history.isNotEmpty()) {
-                    appendLine("\nRecent Conversation Context:")
-                    history.takeLast(6).forEach { m ->
-                        appendLine("${m.role}: ${m.text}")
-                    }
-                }
-                appendLine("\nUser: $userPrompt")
-            }
-            val response = withTimeout(35_000L) {
-                firebaseGeminiModel.generateContent(contextTranscript)
-            }
-            return response.text?.trim()?.ifEmpty { null }
-        }
-
         return null
     }
 
@@ -503,7 +499,7 @@ class MultiAiProviderRouter(private val context: Context) {
                 put("content", systemPrompt)
             }
         )
-        history.takeLast(8).forEach { msg ->
+        history.takeLast(6).forEach { msg ->
             val role = if (msg.role == "user") "user" else "assistant"
             messagesArray.put(
                 JSONObject().apply {
@@ -523,7 +519,7 @@ class MultiAiProviderRouter(private val context: Context) {
             put("model", model)
             put("messages", messagesArray)
             put("temperature", 0.7)
-            put("max_tokens", 350)
+            put("max_tokens", 300)
         }
 
         val reqBuilder = Request.Builder()
@@ -533,7 +529,7 @@ class MultiAiProviderRouter(private val context: Context) {
 
         if (config.providerType == AiProviderType.OPENROUTER_CUSTOM) {
             reqBuilder.addHeader("HTTP-Referer", "https://caroline-ai-jarvis.android")
-            reqBuilder.addHeader("X-Title", "CaroLine AI 2.9 Ultimate Smart JARVIS")
+            reqBuilder.addHeader("X-Title", "CaroLine AI A3.2 Ultimate Smart JARVIS")
         }
 
         val req = reqBuilder
