@@ -1,0 +1,8 @@
+{
+  "name": "CaroLine AI",
+  "description": "Smart, witty & playful AI assistant powered by SUMAN brain for Boss, featuring real-time Hindi + English + Hinglish voice and dynamic face expressions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
