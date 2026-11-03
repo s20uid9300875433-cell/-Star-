@@ -1,8 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/caroline_avatar_main"
-        android:gravity="center" />
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Golden Yellow AI Arc Ring (within 24..84 safe zone) -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,26 A28,28 0 1,1 26,54"
+        android:strokeWidth="4.2"
+        android:strokeColor="#FFC107"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M31,34 A28,28 0 0,1 46,27"
+        android:strokeWidth="4.2"
+        android:strokeColor="#FFD54F"
+        android:strokeLineCap="round" />
+
+    <!-- Inner Geometric Hex/Neural Ring -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,33 A21,21 0 1,0 75,54"
+        android:strokeWidth="2.8"
+        android:strokeColor="#FFB300"
+        android:strokeLineCap="round" />
+
+    <!-- Stylized Golden 'C' + AI Core Emblem -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M63,41 C59,37 51,37 45,42 C39,47 39,61 45,66 C51,71 59,71 63,67"
+        android:strokeWidth="5.5"
+        android:strokeColor="#FFD54F"
+        android:strokeLineCap="round" />
+
+    <!-- Central Golden AI Spark / Core Node -->
+    <path
+        android:fillColor="#FFE082"
+        android:pathData="M54,46 L56.8,51.2 L62,54 L56.8,56.8 L54,62 L51.2,56.8 L46,54 L51.2,51.2 Z" />
+
+    <!-- Accent Neural Nodes -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M75,46m-3.2,0a3.2,3.2 0,1 1,6.4 0a3.2,3.2 0,1 1,-6.4 0" />
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M54,26m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path
+        android:fillColor="#FFB300"
+        android:pathData="M26,54m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+</vector>

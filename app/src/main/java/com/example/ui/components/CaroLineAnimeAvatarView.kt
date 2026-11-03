@@ -181,17 +181,17 @@ fun CaroLineAnimeAvatarView(
     }
 
     val glowColor = when (activeEmotion) {
-        AvatarEmotion.SPEAKING -> CrimsonRed
+        AvatarEmotion.SPEAKING -> AccentGold
         AvatarEmotion.LISTENING -> CyanAccent
         AvatarEmotion.THINKING -> ElectricViolet
-        AvatarEmotion.SMILING, AvatarEmotion.HAPPY -> Color(0xFFFF2A85)
-        AvatarEmotion.SURPRISED -> AccentGold
+        AvatarEmotion.SMILING, AvatarEmotion.HAPPY -> AccentGold
+        AvatarEmotion.SURPRISED -> CrimsonRed
     }
 
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .size(310.dp)
+            .size(300.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -199,7 +199,30 @@ fun CaroLineAnimeAvatarView(
             )
             .testTag("caroline_anime_avatar_stage")
     ) {
-        // --- 1. Outer Sonic Waves (Audio-reactive expanding ripples) ---
+        // --- 1. Outer Sonic Waves & Futuristic JARVIS AI Circle ---
+        Canvas(
+            modifier = Modifier
+                .size(292.dp)
+                .scale(dynamicScale)
+        ) {
+            val c = Offset(size.width / 2f, size.height / 2f)
+            val r = (size.minDimension / 2f) * 0.95f
+
+            // Outer rotating golden-cyan HUD ring segments
+            for (seg in 0 until 4) {
+                val startDeg = haloRotation + (seg * 90f)
+                drawArc(
+                    color = if (seg % 2 == 0) CyanAccent.copy(alpha = 0.85f) else AccentGold.copy(alpha = 0.85f),
+                    startAngle = startDeg,
+                    sweepAngle = 52f,
+                    useCenter = false,
+                    topLeft = Offset(c.x - r, c.y - r),
+                    size = androidx.compose.ui.geometry.Size(r * 2f, r * 2f),
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                )
+            }
+        }
+
         if (liveState == LiveState.SPEAKING || liveState == LiveState.LISTENING) {
             Box(
                 modifier = Modifier
@@ -222,14 +245,14 @@ fun CaroLineAnimeAvatarView(
         // --- 2. Ambient Cyber Aura Glow ---
         Box(
             modifier = Modifier
-                .size(280.dp)
+                .size(276.dp)
                 .scale(dynamicScale)
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            glowColor.copy(alpha = if (liveState == LiveState.SPEAKING) 0.5f else 0.3f),
-                            ElectricViolet.copy(alpha = 0.2f),
+                            glowColor.copy(alpha = if (liveState == LiveState.SPEAKING) 0.48f else 0.28f),
+                            CyanAccent.copy(alpha = 0.22f),
                             Color.Transparent
                         )
                     )
@@ -240,23 +263,24 @@ fun CaroLineAnimeAvatarView(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(255.dp)
+                .size(246.dp)
                 .scale(dynamicScale)
                 .shadow(
                     elevation = if (liveState == LiveState.SPEAKING) 28.dp else 16.dp,
                     shape = CircleShape,
                     spotColor = glowColor,
-                    ambientColor = ElectricViolet
+                    ambientColor = CyanAccent
                 )
                 .clip(CircleShape)
                 .border(
                     width = if (liveState == LiveState.SPEAKING) 3.5.dp else 2.5.dp,
                     brush = Brush.sweepGradient(
                         listOf(
-                            glowColor,
-                            ElectricViolet,
+                            CyanAccent,
                             AccentGold,
-                            glowColor
+                            CyanAccent,
+                            AccentGold,
+                            CyanAccent
                         )
                     ),
                     shape = CircleShape
@@ -509,13 +533,13 @@ fun CaroLineAnimeAvatarView(
                 androidx.compose.foundation.layout.Spacer(modifier = Modifier.size(6.dp))
                 Text(
                     text = when (liveState) {
-                        LiveState.SPEAKING -> "ক্যারোলাইন কথা বলছে"
-                        LiveState.LISTENING -> "ক্যারোলাইন শুনছে"
-                        LiveState.CONNECTING -> "সংযোগ হচ্ছে..."
-                        LiveState.THINKING -> "ক্যারোলাইন চিন্তা করছে..."
-                        LiveState.RECONNECTING -> "পুনরায় সংযোগ হচ্ছে..."
-                        LiveState.ERROR -> "সিস্টেম নোটিশ"
-                        LiveState.DISCONNECTED -> "ভয়েস মোড প্রস্তুত"
+                        LiveState.SPEAKING -> "कैरोलाइन बोल रही है"
+                        LiveState.LISTENING -> "कैरोलाइन सुन रही है"
+                        LiveState.CONNECTING -> "कनेक्ट हो रहा है..."
+                        LiveState.THINKING -> "कैरोलाइन सोच रही है..."
+                        LiveState.RECONNECTING -> "पुनः कनेक्ट हो रहा है..."
+                        LiveState.ERROR -> "सिस्टम नोटिस"
+                        LiveState.DISCONNECTED -> "वॉइस मोड तैयार है"
                     },
                     color = Color.White,
                     fontSize = 11.sp,

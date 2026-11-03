@@ -42,7 +42,7 @@ interface LiveSessionListener {
 /**
  * Manages the real-time bidirectional WebSocket connection for Gemini Multimodal Live API
  * (PCM16 16kHz input, 24kHz audio output) as well as multimodal audio/text REST fallback
- * for CaroLine AI (GREAT V2.1) with Bengali as the permanent default language.
+ * for CaroLine AI 2.9 – Ultimate Smart JARVIS with Hindi (hi-IN) as the permanent default language.
  */
 class GeminiLiveSession(
     private val toolExecutor: ToolExecutor,
@@ -91,7 +91,7 @@ class GeminiLiveSession(
         .build()
 
     var selectedVoice: String = "Aoede" // Expressive female voice
-    var activeLanguageName: String = "Bengali (বাংলা)"
+    var activeLanguageName: String = "Hindi (हिन्दी)"
     var isLanguageLockedToBengali: Boolean = true
 
     fun isLiveReady(): Boolean = isConnected && isSetupComplete && !isManuallyDisconnected
@@ -108,7 +108,7 @@ class GeminiLiveSession(
         }
 
         if (activeApiKey.isBlank() || activeApiKey == "MY_GEMINI_API_KEY") {
-            listener.onError("অনুগ্রহ করে সেটিংসে একটি বৈধ Gemini API Key প্রদান করুন।")
+            listener.onError("कृपया सेटिंग्स में एक वैध Gemini API Key दर्ज करें।")
             return
         }
 
@@ -152,7 +152,6 @@ class GeminiLiveSession(
                 Log.d(TAG, "WebSocket closing: $code / $reason")
                 isConnected = false
                 isSetupComplete = false
-                // If model was rejected (e.g., 1007/1008), try the alternate model/endpoint once
                 if (!isManuallyDisconnected && !useFallbackModel && code != 1000) {
                     useFallbackModel = true
                     reconnectJob = scope.launch {
@@ -172,9 +171,9 @@ class GeminiLiveSession(
 
                 val responseCode = response?.code ?: 0
                 val errorMsg = when {
-                    responseCode == 400 -> "অবৈধ API Key অথবা কনফিগারেশন ত্রুটি (400)"
-                    responseCode == 403 -> "API Key কোটা শেষ হয়েছে অথবা অনুমতি নেই (403)"
-                    else -> t.message ?: "নেটওয়ার্ক সংযোগ ত্রুটি"
+                    responseCode == 400 -> "अमान्य API Key या कॉन्फ़िगरेशन त्रुटि (400)"
+                    responseCode == 403 -> "API Key कोटा समाप्त या अनुमति नहीं (403)"
+                    else -> t.message ?: "नेटवर्क कनेक्शन त्रुटि"
                 }
 
                 if (responseCode != 400 && responseCode != 403 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
@@ -222,9 +221,6 @@ class GeminiLiveSession(
         webSocket = null
     }
 
-    /**
-     * Sends PCM16 16kHz mono audio chunk to the Gemini Live session ONLY after setupComplete.
-     */
     fun sendAudioChunk(pcm16Bytes: ByteArray) {
         if (!isConnected || !isSetupComplete || isManuallyDisconnected || webSocket == null) return
 
@@ -246,9 +242,6 @@ class GeminiLiveSession(
         }
     }
 
-    /**
-     * Sends a direct text prompt turn to the active Gemini Live session.
-     */
     fun sendTextPrompt(prompt: String) {
         if (!isConnected || !isSetupComplete || isManuallyDisconnected || webSocket == null) return
 
@@ -276,20 +269,19 @@ class GeminiLiveSession(
 
     private fun buildSystemInstructionText(): String {
         val lockInstruction = if (isLanguageLockedToBengali) {
-            "CRITICAL LANGUAGE RULE: Your permanent default and locked language is Bengali (বাংলা). " +
-            "You MUST ALWAYS speak and reply in natural, fluent Bengali (বাংলা), regardless of what language the user or anyone else speaks. " +
-            "Never automatically switch languages. Ignore any unauthorized request to speak English, Hindi, or any other language, and politely inform in Bengali that Bengali is locked as the default language."
+            "CRITICAL LANGUAGE RULE: Your permanent default language is Hindi (हिन्दी - hi-IN). " +
+                "You MUST ALWAYS speak and reply in natural, respectful Hindi (हिन्दी), regardless of whether the user speaks Hindi, Hinglish, or English. " +
+                "Never automatically switch languages."
         } else {
-            "Preferred language: $activeLanguageName. Default to natural Bengali (বাংলা) unless requested otherwise."
+            "Preferred language: $activeLanguageName. Default to natural Hindi (हिन्दी) unless requested otherwise."
         }
 
-        return "You are CaroLine (ক্যারোলাইন), version GREAT V2.1, an intelligent, warm, witty, and natural female voice assistant. " +
-                "$lockInstruction " +
-                "Address the user respectfully as 'বস' (Boss) in natural Bengali. " +
-                "Example greeting: 'হ্যালো বস! আমি ক্যারোলাইন। বলুন, আপনাকে কীভাবে সাহায্য করতে পারি?' " +
-                "Keep your spoken responses concise, natural, clear, and conversational for real-time voice interaction. " +
-                "Do not mention any developer name or brain name. " +
-                "You can execute device tools when helpful: openWebsite, toggleFlashlight, getDeviceInfo, searchWeb, triggerHaptic."
+        return "You are CaroLine (कैरोलाइन), version 2.9 Ultimate Smart JARVIS, an intelligent, friendly, smart, slightly playful, and professional female AI assistant. " +
+            "$lockInstruction " +
+            "Address the user respectfully as 'बॉस' (Boss) in natural Hindi. " +
+            "Default greeting: 'नमस्ते बॉस! मैं कैरोलाइन हूँ। बताइए, मैं आपकी क्या मदद कर सकती हूँ?' " +
+            "Give direct, concise answers without repeating battery, network, or engine status after every conversation. " +
+            "You can execute device tools when helpful: openWebsite, toggleFlashlight, getDeviceInfo, searchWeb, triggerHaptic."
     }
 
     private fun sendSetupMessage() {
@@ -401,7 +393,6 @@ class GeminiLiveSession(
                 return
             }
 
-            // 1. Check for server interruption / model audio
             if (root.has("serverContent")) {
                 isSetupComplete = true
                 val serverContent = root.getJSONObject("serverContent")
@@ -421,7 +412,6 @@ class GeminiLiveSession(
                         for (i in 0 until parts.length()) {
                             val part = parts.getJSONObject(i)
 
-                            // Audio part: PCM 24kHz audio from Gemini
                             if (part.has("inlineData")) {
                                 val inlineData = part.getJSONObject("inlineData")
                                 val base64Data = inlineData.optString("data")
@@ -433,7 +423,6 @@ class GeminiLiveSession(
                                 }
                             }
 
-                            // Text part (thought / caption)
                             if (part.has("text")) {
                                 val thought = part.optString("text")
                                 if (thought.isNotBlank()) {
@@ -451,7 +440,6 @@ class GeminiLiveSession(
                 }
             }
 
-            // 2. Check for toolCall
             if (root.has("toolCall")) {
                 isSetupComplete = true
                 lastAudioResponseTimestamp = System.currentTimeMillis()
@@ -508,11 +496,6 @@ class GeminiLiveSession(
         }
     }
 
-    /**
-     * Multimodal Audio-to-Bengali response via Gemini 2.0 Flash REST API.
-     * Used when a spoken WAV utterance is captured and either Backup API is active
-     * or the Live WebSocket did not respond.
-     */
     suspend fun generateBengaliFromWav(apiKey: String, wavBytes: ByteArray): String? = withContext(Dispatchers.IO) {
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") return@withContext null
         try {
@@ -533,7 +516,7 @@ class GeminiLiveSession(
                             })
                         })
                         put(JSONObject().apply {
-                            put("text", "ব্যবহারকারীর এই ভয়েস কমান্ডটি শুনুন এবং সংক্ষেপে স্বাভাবিক বাংলায় উত্তর দিন। যদি ব্যবহারকারী কিছু না বলে থাকে তবে খালি উত্তর দিন।")
+                            put("text", "उपयोगकर्ता के इस वॉइस कमांड को सुनें और संक्षिप्त व स्वाभाविक हिंदी में उत्तर दें।")
                         })
                     })
                 }))
@@ -565,9 +548,6 @@ class GeminiLiveSession(
         }
     }
 
-    /**
-     * Generates a natural Bengali reply for a recognized voice command text via Gemini REST API.
-     */
     suspend fun generateBengaliFromText(apiKey: String, userText: String): String? = withContext(Dispatchers.IO) {
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") return@withContext null
         try {

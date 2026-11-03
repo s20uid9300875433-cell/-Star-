@@ -27,17 +27,17 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Android Foreground Microphone Service for CaroLine AI 2.5 — Smart JARVIS Edition.
+ * Android Foreground Microphone Service for CaroLine AI 2.9 – Ultimate Smart JARVIS.
  * Maintains the microphone voice session across screen-off and app backgrounding
- * within Android 8–15 foreground-service restrictions, provides a persistent
- * notification with Start/Resume and Stop controls, and monitors screen & network state.
+ * within Android 8–15 foreground-service requirements, provides a persistent
+ * notification with Resume and Stop controls, and monitors screen & network state.
  */
 class CaroLineVoiceService : Service() {
 
     companion object {
         private const val TAG = "CaroLineVoiceService"
-        const val CHANNEL_ID = "caroline_voice_channel_v25"
-        const val NOTIFICATION_ID = 2501
+        const val CHANNEL_ID = "caroline_voice_channel_v29"
+        const val NOTIFICATION_ID = 2901
 
         const val ACTION_START_SERVICE = "com.example.service.ACTION_START_VOICE_SERVICE"
         const val ACTION_UPDATE_STATUS = "com.example.service.ACTION_UPDATE_STATUS"
@@ -60,7 +60,7 @@ class CaroLineVoiceService : Service() {
         private val _networkRestoredEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         val networkRestoredEvents = _networkRestoredEvents.asSharedFlow()
 
-        fun startOrUpdate(context: Context, statusText: String = "ক্যারোলাইন আপনার কথা শুনছে...") {
+        fun startOrUpdate(context: Context, statusText: String = "कैरोलाइन आपकी बात सुन रही है...") {
             try {
                 val intent = Intent(context, CaroLineVoiceService::class.java).apply {
                     action = if (_isServiceRunning.value) ACTION_UPDATE_STATUS else ACTION_START_SERVICE
@@ -115,7 +115,7 @@ class CaroLineVoiceService : Service() {
         }
 
         val statusText = intent?.getStringExtra(EXTRA_STATUS_TEXT)
-            ?: "ক্যারোলাইন ২.৫ সক্রিয় — বাংলা ভয়েস কমান্ড শুনছে"
+            ?: "कैरोलाइन 2.9 सक्रिय — हिंदी वॉइस कमांड सुन रही है"
 
         val notification = buildNotification(statusText)
 
@@ -166,10 +166,10 @@ class CaroLineVoiceService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "CaroLine AI 2.5 Smart JARVIS Voice Service",
+                "CaroLine AI 2.9 Ultimate Smart JARVIS Voice Service",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "অবিচ্ছিন্ন বাংলা ভয়েস অ্যাসিস্ট্যান্ট এবং মাইক্রোফোন স্ট্যাটাস"
+                description = "निरंतर हिंदी वॉइस असिस्टेंट और माइक्रोफ़ोन स्टेटस"
                 setShowBadge(false)
             }
             val manager = getSystemService(NotificationManager::class.java)
@@ -209,7 +209,7 @@ class CaroLineVoiceService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("CaroLine AI 2.5 • Smart JARVIS (বাংলা)")
+            .setContentTitle("CaroLine AI 2.9 • Ultimate Smart JARVIS")
             .setContentText(statusText)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingOpenIntent)
@@ -219,12 +219,12 @@ class CaroLineVoiceService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .addAction(
                 android.R.drawable.ic_btn_speak_now,
-                "আবার শুনুন",
+                "फिर से सुनें",
                 pendingResumeIntent
             )
             .addAction(
                 android.R.drawable.ic_media_pause,
-                "ভয়েস মোড বন্ধ করুন",
+                "वॉइस मोड बंद करें",
                 pendingStopIntent
             )
             .build()

@@ -277,7 +277,7 @@ fun JarvisHolographicCore(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "JARVIS 2.5",
+                text = "JARVIS 2.9",
                 color = coreColor,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Black,
@@ -326,13 +326,13 @@ fun JarvisHolographicCore(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = when (liveState) {
-                        LiveState.SPEAKING -> "ক্যারোলাইন কথা বলছে"
-                        LiveState.LISTENING -> "ক্যারোলাইন শুনছে"
-                        LiveState.CONNECTING -> "সংযোগ হচ্ছে..."
-                        LiveState.THINKING -> "জারভিস প্রসেস করছে..."
-                        LiveState.RECONNECTING -> "পুনরায় সংযোগ হচ্ছে..."
-                        LiveState.ERROR -> "সিস্টেম নোটিশ"
-                        LiveState.DISCONNECTED -> "জারভিস কোর প্রস্তুত"
+                        LiveState.SPEAKING -> "कैरोलाइन बोल रही है"
+                        LiveState.LISTENING -> "कैरोलाइन सुन रही है"
+                        LiveState.CONNECTING -> "कनेक्ट हो रहा है..."
+                        LiveState.THINKING -> "जार्विस प्रोसेस कर रहा है..."
+                        LiveState.RECONNECTING -> "पुनः कनेक्ट हो रहा है..."
+                        LiveState.ERROR -> "सिस्टम नोटिस"
+                        LiveState.DISCONNECTED -> "जार्विस कोर तैयार है"
                     },
                     color = Color.White,
                     fontSize = 11.sp,

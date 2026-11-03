@@ -14,13 +14,15 @@ import android.util.Log
 
 data class AppEntry(
     val displayName: String,
-    val bengaliName: String,
+    val bengaliName: String, // Holds Hindi display name in 2.9 (kept property name for compatibility)
     val category: String,
     val knownPackages: List<String>,
     val aliases: List<String>,
     val isInstalled: Boolean = false,
     val resolvedPackage: String? = null
-)
+) {
+    val hindiName: String get() = bengaliName
+}
 
 data class AppLaunchResult(
     val appName: String,
@@ -28,13 +30,15 @@ data class AppLaunchResult(
     val isInstalled: Boolean,
     val isLaunched: Boolean,
     val playStoreOffered: Boolean,
-    val messageBn: String
-)
+    val messageBn: String // Holds natural Hindi response in 2.9
+) {
+    val messageHi: String get() = messageBn
+}
 
 /**
- * Dynamic Top 50 + Installed Application Launcher for CaroLine AI 2.5 — Smart JARVIS Edition.
- * Uses Android PackageManager with Android 11–15 compatible package visibility queries.
- * Never assumes an application is installed; offers Play Store search when an app is missing.
+ * Dynamic Top 50 + Installed Application Launcher for CaroLine AI 2.9 – Ultimate Smart JARVIS.
+ * Uses Android PackageManager with Android 8–15 compatible package visibility queries.
+ * Supports Hindi, Hinglish, and English voice commands ("व्हाट्सएप खोलो", "Open Instagram", etc.).
  */
 class SmartAppLauncher(private val context: Context) {
 
@@ -42,56 +46,56 @@ class SmartAppLauncher(private val context: Context) {
         private const val TAG = "SmartAppLauncher"
 
         val TOP_50_CATALOG: List<AppEntry> = listOf(
-            AppEntry("WhatsApp", "হোয়াটসঅ্যাপ", "Social", listOf("com.whatsapp", "com.whatsapp.w4b"), listOf("whatsapp", "হোয়াটসঅ্যাপ", "হোয়াটসঅ্যাপ", "wa")),
-            AppEntry("YouTube", "ইউটিউব", "Media", listOf("com.google.android.youtube"), listOf("youtube", "ইউটিউব", "yt")),
-            AppEntry("Instagram", "ইনস্টাগ্রাম", "Social", listOf("com.instagram.android"), listOf("instagram", "ইনস্টাগ্রাম", "insta")),
-            AppEntry("Facebook", "ফেসবুক", "Social", listOf("com.facebook.katana", "com.facebook.lite"), listOf("facebook", "ফেসবুক", "fb")),
-            AppEntry("Messenger", "মেসেঞ্জার", "Social", listOf("com.facebook.orca", "com.facebook.mlite"), listOf("messenger", "মেসেঞ্জার")),
-            AppEntry("Chrome", "গুগল ক্রোম", "Browser", listOf("com.android.chrome"), listOf("chrome", "ক্রোম", "browser", "ব্রাউজার")),
-            AppEntry("Gmail", "জিমেইল", "Productivity", listOf("com.google.android.gm"), listOf("gmail", "জিমেইল", "ইমেইল", "মেইল", "email")),
-            AppEntry("Google Maps", "গুগল ম্যাপস", "Navigation", listOf("com.google.android.apps.maps"), listOf("google maps", "maps", "ম্যাপস", "গুগল ম্যাপস", "ম্যাপ")),
-            AppEntry("Spotify", "স্পটিফাই", "Music", listOf("com.spotify.music"), listOf("spotify", "স্পটিফাই")),
-            AppEntry("Telegram", "টেলিগ্রাম", "Social", listOf("org.telegram.messenger", "org.telegram.messenger.web"), listOf("telegram", "টেলিগ্রাম")),
-            AppEntry("Snapchat", "স্ন্যাপচ্যাট", "Social", listOf("com.snapchat.android"), listOf("snapchat", "স্ন্যাপচ্যাট", "snap")),
-            AppEntry("X (Twitter)", "এক্স / টুইটার", "Social", listOf("com.twitter.android"), listOf("twitter", "x", "টুইটার", "এক্স")),
-            AppEntry("LinkedIn", "লিঙ্কডইন", "Business", listOf("com.linkedin.android"), listOf("linkedin", "লিঙ্কডইন")),
-            AppEntry("Pinterest", "পিন্টারেস্ট", "Lifestyle", listOf("com.pinterest"), listOf("pinterest", "পিন্টারেস্ট")),
-            AppEntry("Reddit", "রেডিট", "Social", listOf("com.reddit.frontpage"), listOf("reddit", "রেডিট")),
-            AppEntry("Amazon", "অ্যামাজন", "Shopping", listOf("in.amazon.mShop.android.shopping", "com.amazon.mShop.android.shopping"), listOf("amazon", "অ্যামাজন")),
-            AppEntry("Flipkart", "ফ্লিপকার্ট", "Shopping", listOf("com.flipkart.android"), listOf("flipkart", "ফ্লিপকার্ট")),
-            AppEntry("PhonePe", "ফোনপে", "Finance", listOf("com.phonepe.app"), listOf("phonepe", "ফোনপে")),
-            AppEntry("Google Pay", "গুগল পে", "Finance", listOf("com.google.android.apps.nbu.paisa.user"), listOf("google pay", "gpay", "গুগল পে", "জিপে")),
-            AppEntry("Paytm", "পেটিএম", "Finance", listOf("net.one97.paytm"), listOf("paytm", "পেটিএম")),
-            AppEntry("Camera", "ক্যামেরা", "System", listOf("com.android.camera", "com.android.camera2", "com.google.android.GoogleCamera", "com.sec.android.app.camera"), listOf("camera", "ক্যামেরা", "ছবি")),
-            AppEntry("Gallery", "গ্যালারি / ফটোজ", "System", listOf("com.google.android.apps.photos", "com.sec.android.gallery3d", "com.miui.gallery"), listOf("gallery", "photos", "গ্যালারি", "ফটোজ")),
-            AppEntry("Settings", "সেটিংস", "System", listOf("com.android.settings"), listOf("settings", "সেটিংস", "সেটিং")),
-            AppEntry("YouTube Music", "ইউটিউব মিউজিক", "Music", listOf("com.google.android.apps.youtube.music"), listOf("youtube music", "ইউটিউব মিউজিক", "yt music")),
-            AppEntry("Netflix", "নেটফ্লিক্স", "Media", listOf("com.netflix.mediaclient"), listOf("netflix", "নেটফ্লিক্স")),
-            AppEntry("Prime Video", "প্রাইম ভিডিও", "Media", listOf("com.amazon.avod.thirdpartyclient"), listOf("prime video", "প্রাইম ভিডিও")),
-            AppEntry("Disney+ Hotstar", "হটস্টার", "Media", listOf("in.startv.hotstar"), listOf("hotstar", "হটস্টার", "disney")),
-            AppEntry("JioCinema", "জিও সিনেমা", "Media", listOf("com.jio.media.ondemand"), listOf("jiocinema", "জিও সিনেমা")),
-            AppEntry("VLC Player", "ভিএলসি প্লেয়ার", "Media", listOf("org.videolan.vlc"), listOf("vlc", "ভিএলসি")),
-            AppEntry("MX Player", "এমএক্স প্লেয়ার", "Media", listOf("com.mxtech.videoplayer.ad"), listOf("mx player", "এমএক্স প্লেয়ার")),
-            AppEntry("Google Play Store", "প্লে স্টোর", "System", listOf("com.android.vending"), listOf("play store", "প্লে স্টোর", "google play")),
-            AppEntry("Calculator", "ক্যালকুলেটর", "Tools", listOf("com.google.android.calculator", "com.android.calculator2", "com.sec.android.app.popupcalculator"), listOf("calculator", "ক্যালকুলেটর", "হিসাব")),
-            AppEntry("Clock & Alarm", "ঘড়ি ও অ্যালার্ম", "Tools", listOf("com.google.android.deskclock", "com.android.deskclock", "com.sec.android.app.clockpackage"), listOf("clock", "alarm", "ঘড়ি", "অ্যালার্ম")),
-            AppEntry("Calendar", "ক্যালেন্ডার", "Productivity", listOf("com.google.android.calendar", "com.android.calendar"), listOf("calendar", "ক্যালেন্ডার")),
-            AppEntry("Contacts", "কন্টাক্টস", "System", listOf("com.google.android.contacts", "com.android.contacts"), listOf("contacts", "কন্টাক্টস", "ফোনবুক")),
-            AppEntry("Phone Dialer", "ফোন ডায়ালার", "System", listOf("com.google.android.dialer", "com.android.dialer", "com.samsung.android.dialer"), listOf("dialer", "phone", "ডায়ালার", "ফোন")),
-            AppEntry("Messages (SMS)", "মেসেজ / এসএমএস", "System", listOf("com.google.android.apps.messaging", "com.android.mms", "com.samsung.android.messaging"), listOf("messages", "sms", "মেসেজ", "এসএমএস")),
-            AppEntry("Files", "ফাইল ম্যানেজার", "Tools", listOf("com.google.android.apps.nbu.files", "com.android.documentsui"), listOf("files", "file manager", "ফাইল", "ফাইল ম্যানেজার")),
-            AppEntry("Google Drive", "গুগল ড্রাইভ", "Productivity", listOf("com.google.android.apps.docs"), listOf("google drive", "drive", "গুগল ড্রাইভ", "ড্রাইভ")),
-            AppEntry("Google Keep", "গুগল কিপ নোটস", "Productivity", listOf("com.google.android.keep"), listOf("keep", "notes", "নোটস", "গুগল কিপ")),
-            AppEntry("Google Meet", "গুগল মিট", "Communication", listOf("com.google.android.apps.tachyon"), listOf("google meet", "meet", "গুগল মিট")),
-            AppEntry("Zoom", "জুম", "Communication", listOf("us.zoom.videomeetings"), listOf("zoom", "জুম")),
-            AppEntry("Discord", "ডিসকর্ড", "Social", listOf("com.discord"), listOf("discord", "ডিসকর্ড")),
-            AppEntry("GitHub", "গিটহাব", "Developer", listOf("com.github.android"), listOf("github", "গিটহাব")),
-            AppEntry("ChatGPT", "চ্যাটজিপিটি অ্যাপ", "AI", listOf("com.openai.chatgpt"), listOf("chatgpt", "চ্যাটজিপিটি")),
-            AppEntry("Truecaller", "ট্রুকলার", "Tools", listOf("com.truecaller"), listOf("truecaller", "ট্রুকলার")),
-            AppEntry("Uber", "উবার", "Travel", listOf("com.ubercab"), listOf("uber", "উবার")),
-            AppEntry("Ola", "ওলা", "Travel", listOf("com.olacabs.customer"), listOf("ola", "ওলা")),
-            AppEntry("Zomato", "জোমাটো", "Food", listOf("com.application.zomato"), listOf("zomato", "জোমাটো")),
-            AppEntry("Swiggy", "সুইগি", "Food", listOf("in.swiggy.android"), listOf("swiggy", "সুইগি"))
+            AppEntry("WhatsApp", "व्हाट्सएप", "Social", listOf("com.whatsapp", "com.whatsapp.w4b"), listOf("whatsapp", "व्हाट्सएप", "वाट्सएप", "व्हाट्सऐप", "wa")),
+            AppEntry("YouTube", "यूट्यूब", "Media", listOf("com.google.android.youtube"), listOf("youtube", "यूट्यूब", "यू ट्यूब", "yt")),
+            AppEntry("Instagram", "इंस्टाग्राम", "Social", listOf("com.instagram.android"), listOf("instagram", "इंस्टाग्राम", "इंस्टा", "insta")),
+            AppEntry("Facebook", "फेसबुक", "Social", listOf("com.facebook.katana", "com.facebook.lite"), listOf("facebook", "फेसबुक", "fb")),
+            AppEntry("Messenger", "मैसेंजर", "Social", listOf("com.facebook.orca", "com.facebook.mlite"), listOf("messenger", "मैसेंजर")),
+            AppEntry("Chrome", "गूगल क्रोम", "Browser", listOf("com.android.chrome"), listOf("chrome", "क्रोम", "गूगल क्रोम", "browser", "ब्राउज़र")),
+            AppEntry("Gmail", "जीमेल", "Productivity", listOf("com.google.android.gm"), listOf("gmail", "जीमेल", "ईमेल", "मेल", "email")),
+            AppEntry("Google Maps", "गूगल मैप्स", "Navigation", listOf("com.google.android.apps.maps"), listOf("google maps", "maps", "मैप्स", "गूगल मैप्स", "मैप", "नक्शा")),
+            AppEntry("Spotify", "स्पॉटिफाई", "Music", listOf("com.spotify.music"), listOf("spotify", "स्पॉटिफाई", "स्पॉटीफाई")),
+            AppEntry("Telegram", "टेलीग्राम", "Social", listOf("org.telegram.messenger", "org.telegram.messenger.web"), listOf("telegram", "टेलीग्राम")),
+            AppEntry("Snapchat", "स्नैपचैट", "Social", listOf("com.snapchat.android"), listOf("snapchat", "स्नैपचैट", "snap")),
+            AppEntry("X (Twitter)", "एक्स / ट्विटर", "Social", listOf("com.twitter.android"), listOf("twitter", "x", "ट्विटर", "एक्स")),
+            AppEntry("LinkedIn", "लिंक्डइन", "Business", listOf("com.linkedin.android"), listOf("linkedin", "लिंक्डइन")),
+            AppEntry("Pinterest", "पिंटरेस्ट", "Lifestyle", listOf("com.pinterest"), listOf("pinterest", "पिंटरेस्ट")),
+            AppEntry("Reddit", "रेडिट", "Social", listOf("com.reddit.frontpage"), listOf("reddit", "रेडिट")),
+            AppEntry("Amazon", "अमेज़न", "Shopping", listOf("in.amazon.mShop.android.shopping", "com.amazon.mShop.android.shopping"), listOf("amazon", "अमेज़न", "अमेजन")),
+            AppEntry("Flipkart", "फ्लिपकार्ट", "Shopping", listOf("com.flipkart.android"), listOf("flipkart", "फ्लिपकार्ट")),
+            AppEntry("PhonePe", "फोनपे", "Finance", listOf("com.phonepe.app"), listOf("phonepe", "फोनपे", "फ़ोनपे")),
+            AppEntry("Google Pay", "गूगल पे", "Finance", listOf("com.google.android.apps.nbu.paisa.user"), listOf("google pay", "gpay", "गूगल पे", "जीपे")),
+            AppEntry("Paytm", "पेटीएम", "Finance", listOf("net.one97.paytm"), listOf("paytm", "पेटीएम")),
+            AppEntry("Camera", "कैमरा", "System", listOf("com.android.camera", "com.android.camera2", "com.google.android.GoogleCamera", "com.sec.android.app.camera"), listOf("camera", "कैमरा", "फोटो")),
+            AppEntry("Gallery", "गैलरी / फोटोज़", "System", listOf("com.google.android.apps.photos", "com.sec.android.gallery3d", "com.miui.gallery"), listOf("gallery", "photos", "गैलरी", "फोटोज़")),
+            AppEntry("Settings", "सेटिंग्स", "System", listOf("com.android.settings"), listOf("settings", "सेटिंग्स", "सेटिंग")),
+            AppEntry("YouTube Music", "यूट्यूब म्यूजिक", "Music", listOf("com.google.android.apps.youtube.music"), listOf("youtube music", "यूट्यूब म्यूजिक", "yt music")),
+            AppEntry("Netflix", "नेटफ्लिक्स", "Media", listOf("com.netflix.mediaclient"), listOf("netflix", "नेटफ्लिक्स")),
+            AppEntry("Prime Video", "प्राइम वीडियो", "Media", listOf("com.amazon.avod.thirdpartyclient"), listOf("prime video", "प्राइम वीडियो")),
+            AppEntry("Disney+ Hotstar", "हॉटस्टार", "Media", listOf("in.startv.hotstar"), listOf("hotstar", "हॉटस्टार", "disney")),
+            AppEntry("JioCinema", "जियो सिनेमा", "Media", listOf("com.jio.media.ondemand"), listOf("jiocinema", "जियो सिनेमा")),
+            AppEntry("VLC Player", "वीएलसी प्लेयर", "Media", listOf("org.videolan.vlc"), listOf("vlc", "वीएलसी")),
+            AppEntry("MX Player", "एमएक्स प्लेयर", "Media", listOf("com.mxtech.videoplayer.ad"), listOf("mx player", "एमएक्स प्लेयर")),
+            AppEntry("Google Play Store", "प्ले स्टोर", "System", listOf("com.android.vending"), listOf("play store", "प्ले स्टोर", "google play")),
+            AppEntry("Calculator", "कैलकुलेटर", "Tools", listOf("com.google.android.calculator", "com.android.calculator2", "com.sec.android.app.popupcalculator"), listOf("calculator", "कैलकुलेटर", "हिसाब")),
+            AppEntry("Clock & Alarm", "घड़ी और अलार्म", "Tools", listOf("com.google.android.deskclock", "com.android.deskclock", "com.sec.android.app.clockpackage"), listOf("clock", "alarm", "घड़ी", "अलार्म")),
+            AppEntry("Calendar", "कैलेंडर", "Productivity", listOf("com.google.android.calendar", "com.android.calendar"), listOf("calendar", "कैलेंडर")),
+            AppEntry("Contacts", "कॉन्टैक्ट्स", "System", listOf("com.google.android.contacts", "com.android.contacts"), listOf("contacts", "कॉन्टैक्ट्स", "फोनबुक")),
+            AppEntry("Phone Dialer", "फोन डायलर", "System", listOf("com.google.android.dialer", "com.android.dialer", "com.samsung.android.dialer"), listOf("dialer", "phone", "डायलर", "फोन")),
+            AppEntry("Messages (SMS)", "मैसेज / एसएमएस", "System", listOf("com.google.android.apps.messaging", "com.android.mms", "com.samsung.android.messaging"), listOf("messages", "sms", "मैसेज", "एसएमएस")),
+            AppEntry("Files", "फाइल मैनेजर", "Tools", listOf("com.google.android.apps.nbu.files", "com.android.documentsui"), listOf("files", "file manager", "फाइल", "फाइल मैनेजर")),
+            AppEntry("Google Drive", "गूगल ड्राइव", "Productivity", listOf("com.google.android.apps.docs"), listOf("google drive", "drive", "गूगल ड्राइव", "ड्राइव")),
+            AppEntry("Google Keep", "गूगल कीप नोट्स", "Productivity", listOf("com.google.android.keep"), listOf("keep", "notes", "नोट्स", "गूगल कीप")),
+            AppEntry("Google Meet", "गूगल मीट", "Communication", listOf("com.google.android.apps.tachyon"), listOf("google meet", "meet", "गूगल मीट")),
+            AppEntry("Zoom", "ज़ूम", "Communication", listOf("us.zoom.videomeetings"), listOf("zoom", "ज़ूम", "जूम")),
+            AppEntry("Discord", "डिस्कॉर्ड", "Social", listOf("com.discord"), listOf("discord", "डिस्कॉर्ड")),
+            AppEntry("GitHub", "गिटहब", "Developer", listOf("com.github.android"), listOf("github", "गिटहब")),
+            AppEntry("ChatGPT", "चैटजीपीटी ऐप", "AI", listOf("com.openai.chatgpt"), listOf("chatgpt", "चैटजीपीटी")),
+            AppEntry("Truecaller", "ट्रूकॉलर", "Tools", listOf("com.truecaller"), listOf("truecaller", "ट्रूकॉलर")),
+            AppEntry("Uber", "उबर", "Travel", listOf("com.ubercab"), listOf("uber", "उबर")),
+            AppEntry("Ola", "ओला", "Travel", listOf("com.olacabs.customer"), listOf("ola", "ओला")),
+            AppEntry("Zomato", "ज़ोमैटो", "Food", listOf("com.application.zomato"), listOf("zomato", "ज़ोमैटो", "जोमैटो")),
+            AppEntry("Swiggy", "स्विगी", "Food", listOf("in.swiggy.android"), listOf("swiggy", "स्विगी"))
         )
     }
 
@@ -114,7 +118,6 @@ class SmartAppLauncher(private val context: Context) {
             )
         }
 
-        // Also append additional installed apps on the device that aren't already in Top 50
         val knownPkgSet = enrichedTop50.mapNotNull { it.resolvedPackage }.toSet() +
             TOP_50_CATALOG.flatMap { it.knownPackages }.toSet()
 
@@ -187,7 +190,7 @@ class SmartAppLauncher(private val context: Context) {
     }
 
     /**
-     * Attempts to launch an application by its English/Bengali name or package name.
+     * Attempts to launch an application by its English/Hindi/Hinglish name or package name.
      * Never claims success unless an Activity was genuinely started.
      */
     fun launchApp(query: String, openPlayStoreIfMissing: Boolean = true): AppLaunchResult {
@@ -195,7 +198,6 @@ class SmartAppLauncher(private val context: Context) {
         val lower = cleanQuery.lowercase()
         val pm = context.packageManager
 
-        // 1. Check catalog match first
         val catalogEntry = TOP_50_CATALOG.firstOrNull { entry ->
             entry.displayName.equals(cleanQuery, ignoreCase = true) ||
                 entry.bengaliName == cleanQuery ||
@@ -204,7 +206,6 @@ class SmartAppLauncher(private val context: Context) {
         }
 
         if (catalogEntry != null) {
-            // Try known packages
             for (pkg in catalogEntry.knownPackages) {
                 val launchIntent = pm.getLaunchIntentForPackage(pkg)
                 if (launchIntent != null) {
@@ -217,7 +218,7 @@ class SmartAppLauncher(private val context: Context) {
                             isInstalled = true,
                             isLaunched = true,
                             playStoreOffered = false,
-                            messageBn = "বস, আপনার ফোনে ${catalogEntry.bengaliName} (${catalogEntry.displayName}) খুলে দিয়েছি।"
+                            messageBn = "बॉस, मैंने आपके फोन में ${catalogEntry.hindiName} (${catalogEntry.displayName}) खोल दिया है।"
                         )
                     } catch (e: Exception) {
                         Log.e(TAG, "Error launching $pkg", e)
@@ -227,13 +228,12 @@ class SmartAppLauncher(private val context: Context) {
                             isInstalled = true,
                             isLaunched = false,
                             playStoreOffered = false,
-                            messageBn = "বস, ${catalogEntry.displayName} খুলতে সমস্যা হয়েছে: ${e.localizedMessage ?: "ত্রুটি"}।"
+                            messageBn = "बॉस, ${catalogEntry.displayName} खोलने में समस्या आई: ${e.localizedMessage ?: "त्रुटि"}।"
                         )
                     }
                 }
             }
 
-            // Try system intent fallback for system apps (Camera, Settings, Dialer, etc.)
             if (launchSystemFallback(catalogEntry.displayName)) {
                 return AppLaunchResult(
                     appName = catalogEntry.displayName,
@@ -241,11 +241,10 @@ class SmartAppLauncher(private val context: Context) {
                     isInstalled = true,
                     isLaunched = true,
                     playStoreOffered = false,
-                    messageBn = "বস, আপনার ফোনে ${catalogEntry.bengaliName} খুলে দিয়েছি।"
+                    messageBn = "बॉस, आपके फोन में ${catalogEntry.hindiName} खोल दिया गया है।"
                 )
             }
 
-            // App is in Top 50 catalog but not installed on this device
             val playStoreOpened = if (openPlayStoreIfMissing) {
                 openPlayStoreSearch(catalogEntry.knownPackages.firstOrNull() ?: catalogEntry.displayName)
             } else false
@@ -257,14 +256,13 @@ class SmartAppLauncher(private val context: Context) {
                 isLaunched = false,
                 playStoreOffered = playStoreOpened,
                 messageBn = if (playStoreOpened) {
-                    "বস, আপনার ফোনে ${catalogEntry.displayName} ইনস্টল করা নেই। আমি প্লে স্টোরে এটি খুঁজে দিচ্ছি।"
+                    "बॉस, आपके फोन में ${catalogEntry.displayName} इंस्टॉल नहीं है। मैंने इसे गूगल प्ले स्टोर पर खोल दिया है।"
                 } else {
-                    "বস, আপনার ফোনে ${catalogEntry.displayName} অ্যাপটি ইনস্টল করা নেই।"
+                    "बॉस, आपके फोन में ${catalogEntry.displayName} ऐप इंस्टॉल नहीं है।"
                 }
             )
         }
 
-        // 2. Dynamic search across all installed launcher apps on device
         val installedApps = getInstalledLauncherPackages(pm)
         val matchedInstalled = installedApps.entries.firstOrNull { (pkg, label) ->
             label.lowercase().contains(lower) || lower.contains(label.lowercase()) || pkg.equals(cleanQuery, ignoreCase = true)
@@ -282,7 +280,7 @@ class SmartAppLauncher(private val context: Context) {
                         isInstalled = true,
                         isLaunched = true,
                         playStoreOffered = false,
-                        messageBn = "বস, আপনার ফোনে ${matchedInstalled.value} খুলে দিয়েছি।"
+                        messageBn = "बॉस, मैंने आपके फोन में ${matchedInstalled.value} खोल दिया है।"
                     )
                 } catch (e: Exception) {
                     AppLaunchResult(
@@ -291,13 +289,12 @@ class SmartAppLauncher(private val context: Context) {
                         isInstalled = true,
                         isLaunched = false,
                         playStoreOffered = false,
-                        messageBn = "বস, ${matchedInstalled.value} অ্যাপটি চালু করতে সমস্যা হয়েছে।"
+                        messageBn = "बॉस, ${matchedInstalled.value} ऐप शुरू करने में समस्या हुई।"
                     )
                 }
             }
         }
 
-        // 3. Not installed — offer Play Store search
         val playStoreOpened = if (openPlayStoreIfMissing) {
             openPlayStoreSearch(cleanQuery)
         } else false
@@ -309,9 +306,9 @@ class SmartAppLauncher(private val context: Context) {
             isLaunched = false,
             playStoreOffered = playStoreOpened,
             messageBn = if (playStoreOpened) {
-                "বস, '$cleanQuery' অ্যাপটি আপনার ফোনে ইনস্টল করা নেই। আমি গুগল প্লে স্টোরে এটি খুঁজে দিচ্ছি।"
+                "बॉस, '$cleanQuery' ऐप आपके फोन में इंस्टॉल नहीं है। मैंने प्ले स्टोर पर इसकी खोज खोल दी है।"
             } else {
-                "বস, '$cleanQuery' অ্যাপটি আপনার ফোনে ইনস্টল করা নেই।"
+                "बॉस, '$cleanQuery' ऐप आपके फोन में इंस्टॉल नहीं है।"
             }
         )
     }
