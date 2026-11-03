@@ -1,5 +1,6 @@
 package com.example.service
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -16,15 +17,15 @@ import com.example.R
  * Handles BOOT_COMPLETED safely within Android's microphone foreground service rules.
  * On Android 14+ (API 34+), apps cannot directly start a microphone foreground service
  * from BOOT_COMPLETED without visible user interaction; therefore we post a ready notification
- * that launches CaroLine AI GREAT V2.1 immediately when tapped.
+ * that launches CaroLine AI A3.2 immediately when tapped.
  */
 class BootCompletedReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "BootCompletedReceiver"
-        private const val PREFS_NAME = "caroline_ai_prefs"
+        private const val PREFS_NAME = "caroline_ai_prefs_v29"
         private const val KEY_AUTO_BOOT = "auto_boot_notification_enabled"
-        private const val BOOT_NOTIFICATION_ID = 2102
+        private const val BOOT_NOTIFICATION_ID = 3202
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
@@ -34,7 +35,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
             val enabled = prefs.getBoolean(KEY_AUTO_BOOT, true)
             if (!enabled) return
 
-            Log.d(TAG, "Device boot completed — posting CaroLine AI GREAT V2.1 ready notification")
+            Log.d(TAG, "Device boot completed — posting CaroLine AI A3.2 Background Voice Assistant ready notification")
             postBootReadyNotification(context)
         }
     }
@@ -45,9 +46,11 @@ class BootCompletedReceiver : BroadcastReceiver() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     CaroLineVoiceService.CHANNEL_ID,
-                    "CaroLine AI Voice Service (GREAT V2.1)",
+                    "CaroLine AI A3.2 Background Voice Assistant",
                     NotificationManager.IMPORTANCE_LOW
-                )
+                ).apply {
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                }
                 manager.createNotificationChannel(channel)
             }
 
@@ -57,16 +60,17 @@ class BootCompletedReceiver : BroadcastReceiver() {
             }
             val pendingIntent = PendingIntent.getActivity(
                 context,
-                2102,
+                3202,
                 launchIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
             val notification = NotificationCompat.Builder(context, CaroLineVoiceService.CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("CaroLine AI • GREAT V2.1")
-                .setContentText("ক্যারোলাইন প্রস্তুত! ভয়েস মোড চালু করতে ট্যাপ করুন।")
+                .setContentTitle("CaroLine AI A3.2 • Ready (\"Hey CaroLine\")")
+                .setContentText("Tap to start Background Voice Assistant in Battery-Saving Mode.")
                 .setContentIntent(pendingIntent)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build()

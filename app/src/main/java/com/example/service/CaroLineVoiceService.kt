@@ -21,6 +21,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -53,17 +54,13 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
- * Requirement F & N: Android Foreground Service + Movable System Floating CaroLine Window (A3.2).
+ * Foreground Microphone Service + Background Voice Assistant + Movable Floating Window (A3.2).
  *
- * - Hosts the movable floating assistant bubble over other apps when `Settings.canDrawOverlays(context)` is granted.
- * - When tapped, opens the compact floating window containing:
- *   1. Microphone button
- *   2. Text command field
- *   3. Send button
- *   4. Short AI response
- *   5. Close button
- *   6. Expand assistant button (returns to MainActivity without restarting the engine)
- * - Shares a single command pipeline with CaroLineViewModel so no duplicate services or restarts occur.
+ * Implements:
+ * - Background Voice Assistant with Wake Word: "Hey CaroLine"
+ * - Works even when screen is off under supported conditions (Active Foreground Microphone Service,
+ *   bounded partial WakeLock, battery >= 15% or charging, lock-screen public notification trigger)
+ * - Battery-saving listening mode instead of aggressive continuous listening
  */
 class CaroLineVoiceService : Service() {
 
@@ -75,10 +72,15 @@ class CaroLineVoiceService : Service() {
         const val ACTION_START_SERVICE = "com.example.service.ACTION_START_VOICE_SERVICE"
         const val ACTION_UPDATE_STATUS = "com.example.service.ACTION_UPDATE_STATUS"
         const val ACTION_RESUME_LISTENING = "com.example.service.ACTION_RESUME_LISTENING"
+        const val ACTION_TOGGLE_BATTERY_SAVER = "com.example.service.ACTION_TOGGLE_BATTERY_SAVER"
         const val ACTION_STOP_SERVICE = "com.example.service.ACTION_STOP_VOICE_SERVICE"
         const val ACTION_SHOW_FLOATING_BUBBLE = "com.example.service.ACTION_SHOW_FLOATING_BUBBLE"
         const val ACTION_HIDE_FLOATING_BUBBLE = "com.example.service.ACTION_HIDE_FLOATING_BUBBLE"
+
         const val EXTRA_STATUS_TEXT = "extra_status_text"
+        const val EXTRA_WAKE_WORD = "extra_wake_word"
+        const val EXTRA_BATTERY_SAVING_MODE = "extra_battery_saving_mode"
+        const val EXTRA_SCREEN_OFF_SUPPORTED = "extra_screen_off_supported"
 
         private val _isServiceRunning = MutableStateFlow(false)
         val isServiceRunning = _isServiceRunning.asStateFlow()
@@ -88,6 +90,12 @@ class CaroLineVoiceService : Service() {
 
         private val _isSystemOverlayShowing = MutableStateFlow(false)
         val isSystemOverlayShowing = _isSystemOverlayShowing.asStateFlow()
+
+        private val _isBatterySavingMode = MutableStateFlow(true)
+        val isBatterySavingMode = _isBatterySavingMode.asStateFlow()
+
+        private val _isScreenOffSupportEnabled = MutableStateFlow(true)
+        val isScreenOffSupportEnabled = _isScreenOffSupportEnabled.asStateFlow()
 
         private val _floatingResponseSnippet = MutableStateFlow(
             "नमस्ते बॉस! मैं कैरोलाइन हूँ। बताइए, मैं आपकी क्या मदद कर सकती हूँ?"
@@ -99,6 +107,9 @@ class CaroLineVoiceService : Service() {
 
         private val _resumeRequestedEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         val resumeRequestedEvents = _resumeRequestedEvents.asSharedFlow()
+
+        private val _toggleBatterySaverEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        val toggleBatterySaverEvents = _toggleBatterySaverEvents.asSharedFlow()
 
         private val _networkRestoredEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         val networkRestoredEvents = _networkRestoredEvents.asSharedFlow()
@@ -127,11 +138,22 @@ class CaroLineVoiceService : Service() {
             }
         }
 
-        fun startOrUpdate(context: Context, statusText: String = "CaroLine AI A3.2 Active — Listening") {
+        fun startOrUpdate(
+            context: Context,
+            statusText: String = "Wake Word: \"Hey CaroLine\" • Battery-Saving Listening Mode",
+            wakeWord: String = "Hey CaroLine",
+            batterySavingMode: Boolean = _isBatterySavingMode.value,
+            screenOffSupported: Boolean = _isScreenOffSupportEnabled.value
+        ) {
+            _isBatterySavingMode.value = batterySavingMode
+            _isScreenOffSupportEnabled.value = screenOffSupported
             try {
                 val intent = Intent(context, CaroLineVoiceService::class.java).apply {
                     action = if (_isServiceRunning.value) ACTION_UPDATE_STATUS else ACTION_START_SERVICE
                     putExtra(EXTRA_STATUS_TEXT, statusText)
+                    putExtra(EXTRA_WAKE_WORD, wakeWord)
+                    putExtra(EXTRA_BATTERY_SAVING_MODE, batterySavingMode)
+                    putExtra(EXTRA_SCREEN_OFF_SUPPORTED, screenOffSupported)
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !_isServiceRunning.value) {
                     context.startForegroundService(intent)
@@ -184,6 +206,9 @@ class CaroLineVoiceService : Service() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var screenStateReceiver: BroadcastReceiver? = null
 
+    private var currentWakeWord: String = "Hey CaroLine"
+    private var currentStatusText: String = "Wake Word: \"Hey CaroLine\" • Battery-Saving Listening Mode"
+
     private var windowManager: WindowManager? = null
     private var floatingRootView: FrameLayout? = null
     private var bubbleView: TextView? = null
@@ -219,6 +244,9 @@ class CaroLineVoiceService : Service() {
             ACTION_RESUME_LISTENING -> {
                 _resumeRequestedEvents.tryEmit(Unit)
             }
+            ACTION_TOGGLE_BATTERY_SAVER -> {
+                _toggleBatterySaverEvents.tryEmit(Unit)
+            }
             ACTION_SHOW_FLOATING_BUBBLE -> {
                 if (canDrawOverlays(this)) {
                     ensureSystemOverlayWindow()
@@ -229,8 +257,18 @@ class CaroLineVoiceService : Service() {
             }
         }
 
-        val statusText = intent?.getStringExtra(EXTRA_STATUS_TEXT)
-            ?: "CaroLine AI A3.2 Active — Ready for commands"
+        intent?.getStringExtra(EXTRA_WAKE_WORD)?.let {
+            if (it.isNotBlank()) currentWakeWord = it
+        }
+        if (intent?.hasExtra(EXTRA_BATTERY_SAVING_MODE) == true) {
+            _isBatterySavingMode.value = intent.getBooleanExtra(EXTRA_BATTERY_SAVING_MODE, true)
+        }
+        if (intent?.hasExtra(EXTRA_SCREEN_OFF_SUPPORTED) == true) {
+            _isScreenOffSupportEnabled.value = intent.getBooleanExtra(EXTRA_SCREEN_OFF_SUPPORTED, true)
+        }
+
+        currentStatusText = intent?.getStringExtra(EXTRA_STATUS_TEXT)
+            ?: buildStatusSummaryText()
 
         val hasMicPerm = ContextCompat.checkSelfPermission(
             this,
@@ -238,7 +276,7 @@ class CaroLineVoiceService : Service() {
         ) == PackageManager.PERMISSION_GRANTED
 
         if (hasMicPerm) {
-            val notification = buildNotification(statusText)
+            val notification = buildNotification(currentStatusText)
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     startForeground(
@@ -250,13 +288,19 @@ class CaroLineVoiceService : Service() {
                     startForeground(NOTIFICATION_ID, notification)
                 }
                 _isServiceRunning.value = true
-                acquireSafeWakeLock()
+                updateWakeLockForSupportedConditions()
             } catch (e: Exception) {
                 Log.w(TAG, "Foreground promotion skipped safely: ${e.message}")
             }
         }
 
         return START_STICKY
+    }
+
+    private fun buildStatusSummaryText(): String {
+        val modeLabel = if (_isBatterySavingMode.value) "Battery-Saving Mode" else "Active Listening"
+        val screenLabel = if (_isScreenOffSupportEnabled.value) "Screen-Off Ready" else "Screen-On Only"
+        return "Wake: \"$currentWakeWord\" • $modeLabel • $screenLabel"
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -527,11 +571,12 @@ class CaroLineVoiceService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "CaroLine AI A3.2 Smart JARVIS Service",
+                "CaroLine AI A3.2 Background Voice Assistant",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "CaroLine AI A3.2 Voice & Floating Assistant Service"
+                description = "Foreground microphone service for Hey CaroLine wake word & battery-saving listening mode"
                 setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
@@ -559,6 +604,16 @@ class CaroLineVoiceService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val batterySaverIntent = Intent(this, CaroLineVoiceService::class.java).apply {
+            action = ACTION_TOGGLE_BATTERY_SAVER
+        }
+        val pendingBatterySaverIntent = PendingIntent.getService(
+            this,
+            3,
+            batterySaverIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val stopServiceIntent = Intent(this, CaroLineVoiceService::class.java).apply {
             action = ACTION_STOP_SERVICE
         }
@@ -569,19 +624,32 @@ class CaroLineVoiceService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val batteryModeLabel = if (_isBatterySavingMode.value) "Battery Saver: ON" else "Battery Saver: OFF"
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("CaroLine AI A3.2 • Ultimate Smart JARVIS")
+            .setContentTitle("CaroLine AI • Wake Word: \"$currentWakeWord\"")
             .setContentText(statusText)
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "$statusText\nForeground Mic Service • ${if (_isScreenOffSupportEnabled.value) "Screen-Off Supported" else "Screen-On Mode"}"
+                )
+            )
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingOpenIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .addAction(
                 android.R.drawable.ic_btn_speak_now,
-                "Resume Mic",
+                "Hey CaroLine",
                 pendingResumeIntent
+            )
+            .addAction(
+                android.R.drawable.ic_lock_idle_charging,
+                batteryModeLabel,
+                pendingBatterySaverIntent
             )
             .addAction(
                 android.R.drawable.ic_media_pause,
@@ -589,6 +657,29 @@ class CaroLineVoiceService : Service() {
                 pendingStopIntent
             )
             .build()
+    }
+
+    private fun isBatteryHealthyForScreenOff(): Boolean {
+        return try {
+            val bm = getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+            val level = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
+            val isCharging = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                bm?.isCharging ?: false
+            } else {
+                false
+            }
+            isCharging || level >= 15
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    private fun updateWakeLockForSupportedConditions() {
+        if (_isScreenOffSupportEnabled.value && isBatteryHealthyForScreenOff()) {
+            acquireSafeWakeLock()
+        } else if (!_isScreenInteractive.value && !_isScreenOffSupportEnabled.value) {
+            releaseWakeLock()
+        }
     }
 
     private fun acquireSafeWakeLock() {
@@ -600,7 +691,8 @@ class CaroLineVoiceService : Service() {
                 "CaroLineAI::JarvisVoiceWakeLock"
             )?.apply {
                 setReferenceCounted(false)
-                acquire(15 * 60 * 1000L)
+                // Bounded 12-minute battery-safe partial wakelock for supported screen-off listening
+                acquire(12 * 60 * 1000L)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not acquire WakeLock", e)
@@ -625,9 +717,12 @@ class CaroLineVoiceService : Service() {
                     when (intent?.action) {
                         Intent.ACTION_SCREEN_OFF -> {
                             _isScreenInteractive.value = false
+                            updateWakeLockForSupportedConditions()
                         }
-                        Intent.ACTION_SCREEN_ON -> {
+                        Intent.ACTION_SCREEN_ON,
+                        Intent.ACTION_USER_PRESENT -> {
                             _isScreenInteractive.value = true
+                            updateWakeLockForSupportedConditions()
                         }
                     }
                 }
@@ -635,6 +730,7 @@ class CaroLineVoiceService : Service() {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_OFF)
                 addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_USER_PRESENT)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)

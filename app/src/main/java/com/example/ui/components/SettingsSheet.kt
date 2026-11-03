@@ -26,6 +26,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -45,8 +47,6 @@ import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -81,6 +81,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.audio.ListeningPowerMode
 import com.example.live.AdaptiveAiSnapshot
 import com.example.live.AiProviderType
 import com.example.live.CaroLineBrainEngine
@@ -168,9 +169,14 @@ fun SettingsSheet(
     adaptiveAiSnapshot: AdaptiveAiSnapshot = AdaptiveAiSnapshot(),
     onRefreshWeather: (String) -> Unit = {},
     onRefreshTelemetry: () -> Unit = {},
-    // Wake Word & Background Service
+    // Wake Word, Battery-Saving Mode, Screen-Off Support & Foreground Mic Service
     wakeWordEnabled: Boolean = true,
     selectedWakeWord: String = "Hey CaroLine",
+    listeningPowerMode: ListeningPowerMode = ListeningPowerMode.BATTERY_SAVING,
+    isBatterySavingListeningMode: Boolean = true,
+    isScreenOffVoiceEnabled: Boolean = true,
+    isScreenOffConditionSupported: Boolean = true,
+    isInEcoStandby: Boolean = false,
     isHandsFreeMode: Boolean = true,
     isBackgroundServiceEnabled: Boolean = true,
     isForegroundServiceRunning: Boolean = false,
@@ -178,6 +184,10 @@ fun SettingsSheet(
     onLockLanguageToHindi: () -> Unit = {},
     onToggleWakeWord: () -> Unit = {},
     onSelectWakeWord: (String) -> Unit = {},
+    onSelectListeningPowerMode: (ListeningPowerMode) -> Unit = {},
+    onToggleBatterySavingListeningMode: () -> Unit = {},
+    onToggleScreenOffVoiceSupport: () -> Unit = {},
+    onWakeFromEcoStandby: () -> Unit = {},
     onToggleHandsFree: () -> Unit = {},
     onToggleBackgroundService: () -> Unit = {},
     // Music & Video Preferences
@@ -413,7 +423,9 @@ fun SettingsSheet(
                                     1.dp,
                                     if (isSelected) JarvisCyan else JarvisHudBorder
                                 ),
-                                modifier = Modifier.clickable { onSelectWakeWord(phrase) }
+                                modifier = Modifier
+                                    .clickable { onSelectWakeWord(phrase) }
+                                    .testTag("wake_word_chip_${phrase.replace(" ", "_").lowercase()}")
                             ) {
                                 Text(
                                     text = phrase,
@@ -423,6 +435,182 @@ fun SettingsSheet(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
                             }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = JarvisHudBorder.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Battery-Saving Listening Mode vs Continuous Listening
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Battery-Saving Listening Mode",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = PureWhite
+                            )
+                            Text(
+                                text = "Duty-cycled wake-word listening instead of continuous mic drain",
+                                fontSize = 11.sp,
+                                color = JarvisEmerald
+                            )
+                        }
+                        Switch(
+                            checked = isBatterySavingListeningMode,
+                            onCheckedChange = { onToggleBatterySavingListeningMode() },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = PureWhite,
+                                checkedTrackColor = JarvisEmerald
+                            ),
+                            modifier = Modifier.testTag("battery_saving_listening_switch")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ListeningPowerMode.values().forEach { mode ->
+                            val isSelected = listeningPowerMode == mode
+                            Surface(
+                                color = if (isSelected) JarvisEmerald.copy(alpha = 0.18f) else Color(0xFF06101E),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) JarvisEmerald else JarvisHudBorder
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSelectListeningPowerMode(mode) }
+                                    .testTag("listening_power_mode_${mode.id}")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = mode.titleEn,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) JarvisEmerald else PureWhite
+                                        )
+                                        Text(
+                                            text = mode.subtitleEn,
+                                            fontSize = 10.sp,
+                                            color = SoftLilac
+                                        )
+                                    }
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Selected Power Mode",
+                                            tint = JarvisEmerald,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Screen-Off Supported Conditions
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Work When Screen is Off (Supported Conditions)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = PureWhite
+                            )
+                            Text(
+                                text = if (isScreenOffConditionSupported) {
+                                    "Supported: Foreground Microphone Service + Battery >= 15%"
+                                } else {
+                                    "Standby: Enable Foreground Mic Service & Battery >= 15%"
+                                },
+                                fontSize = 11.sp,
+                                color = if (isScreenOffConditionSupported) JarvisCyan else AccentGold
+                            )
+                        }
+                        Switch(
+                            checked = isScreenOffVoiceEnabled,
+                            onCheckedChange = { onToggleScreenOffVoiceSupport() },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = PureWhite,
+                                checkedTrackColor = JarvisCyan
+                            ),
+                            modifier = Modifier.testTag("screen_off_voice_switch")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Foreground Microphone Service status & toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Foreground Microphone Service",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = PureWhite
+                            )
+                            Text(
+                                text = if (isForegroundServiceRunning) {
+                                    "Running (foregroundServiceType=microphone • Lock-Screen Controls Active)"
+                                } else {
+                                    "Ready — Starts automatically when voice assistant is active"
+                                },
+                                fontSize = 11.sp,
+                                color = if (isForegroundServiceRunning) JarvisEmerald else SoftLilac
+                            )
+                        }
+                        Switch(
+                            checked = isBackgroundServiceEnabled,
+                            onCheckedChange = { onToggleBackgroundService() },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = PureWhite,
+                                checkedTrackColor = AccentGold
+                            ),
+                            modifier = Modifier.testTag("foreground_mic_service_switch")
+                        )
+                    }
+
+                    if (isInEcoStandby) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = onWakeFromEcoStandby,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = JarvisCyan,
+                                contentColor = Color.Black
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("wake_from_eco_standby_button")
+                        ) {
+                            Text(
+                                text = "Wake Assistant Now (\"$selectedWakeWord\")",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
                         }
                     }
                 }
@@ -493,7 +681,7 @@ fun SettingsSheet(
                                     .background(if (isVoiceMuted) AlertRed.copy(alpha = 0.25f) else JarvisCyan.copy(alpha = 0.16f))
                             ) {
                                 Icon(
-                                    imageVector = if (isVoiceMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                                    imageVector = if (isVoiceMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                                     contentDescription = "Mute or Unmute Voice",
                                     tint = if (isVoiceMuted) AlertRed else JarvisCyan
                                 )

@@ -1,5 +1,7 @@
 package com.example
 
+import com.example.audio.BengaliSpeechRecognizer
+import com.example.audio.ListeningPowerMode
 import com.example.live.AiProviderType
 import com.example.live.CaroLineBrainEngine
 import com.example.live.LiveState
@@ -31,6 +33,89 @@ class ExampleRobolectricTest {
         )
         assertTrue(CaroLineBrainEngine.DEFAULT_SMART_ROUTINES.size >= 4)
         assertTrue(CaroLineBrainEngine.DEFAULT_SMART_ROUTINES.all { it.nameHi.isNotBlank() && it.commands.isNotEmpty() })
+    }
+
+    @Test
+    fun `test Hey CaroLine wake word detection and command extraction`() {
+        assertTrue(BengaliSpeechRecognizer.matchesWakeWord("Hey CaroLine", "Hey CaroLine"))
+        assertTrue(BengaliSpeechRecognizer.matchesWakeWord("hey caroline what is the weather", "Hey CaroLine"))
+        assertTrue(BengaliSpeechRecognizer.matchesWakeWord("हे कैरोलाइन राहुल को कॉल करो", "Hey CaroLine"))
+        assertTrue(BengaliSpeechRecognizer.matchesWakeWord("হ্যালো ক্যারোলাইন समय बोलो", "Hey CaroLine"))
+        assertFalse(BengaliSpeechRecognizer.matchesWakeWord("Open calculator please", "Hey CaroLine"))
+
+        assertEquals(
+            "",
+            BengaliSpeechRecognizer.extractCommandAfterWakeWord("Hey CaroLine!", "Hey CaroLine")
+        )
+        assertEquals(
+            "call Rahul",
+            BengaliSpeechRecognizer.extractCommandAfterWakeWord("Hey CaroLine, call Rahul", "Hey CaroLine")
+        )
+        assertEquals(
+            "राहुल को कॉल करो",
+            BengaliSpeechRecognizer.extractCommandAfterWakeWord("हे कैरोलाइन राहुल को कॉल करो", "Hey CaroLine")
+        )
+    }
+
+    @Test
+    fun `test Battery-Saving Listening Mode duty-cycle intervals and Screen-Off supported conditions`() {
+        val screenOnBatterySaverDelay = BengaliSpeechRecognizer.computeBatterySavingDelayMs(
+            consecutiveSilentCycles = 1,
+            isScreenInteractive = true,
+            isCharging = false,
+            batteryLevel = 80,
+            mode = ListeningPowerMode.BATTERY_SAVING
+        )
+        val screenOnContinuousDelay = BengaliSpeechRecognizer.computeBatterySavingDelayMs(
+            consecutiveSilentCycles = 1,
+            isScreenInteractive = true,
+            isCharging = false,
+            batteryLevel = 80,
+            mode = ListeningPowerMode.CONTINUOUS_ACTIVE
+        )
+        val screenOffBatterySaverDelay = BengaliSpeechRecognizer.computeBatterySavingDelayMs(
+            consecutiveSilentCycles = 2,
+            isScreenInteractive = false,
+            isCharging = false,
+            batteryLevel = 80,
+            mode = ListeningPowerMode.BATTERY_SAVING
+        )
+
+        // Battery-saving mode rests significantly longer than continuous mode to save battery
+        assertTrue(screenOnBatterySaverDelay > screenOnContinuousDelay)
+        // Screen-off battery-saving mode rests even longer between wake-word windows
+        assertTrue(screenOffBatterySaverDelay > screenOnBatterySaverDelay)
+
+        // Screen-Off supported conditions verification
+        assertTrue(
+            BengaliSpeechRecognizer.isScreenOffListeningSupported(
+                isForegroundServiceRunning = true,
+                isScreenOffSupportEnabled = true,
+                hasMicPermission = true,
+                batteryLevel = 55,
+                isCharging = false
+            )
+        )
+        // Low battery (<15%) unplugged disables screen-off mic listening to protect device battery
+        assertFalse(
+            BengaliSpeechRecognizer.isScreenOffListeningSupported(
+                isForegroundServiceRunning = true,
+                isScreenOffSupportEnabled = true,
+                hasMicPermission = true,
+                batteryLevel = 10,
+                isCharging = false
+            )
+        )
+        // Low battery (10%) while charging is supported
+        assertTrue(
+            BengaliSpeechRecognizer.isScreenOffListeningSupported(
+                isForegroundServiceRunning = true,
+                isScreenOffSupportEnabled = true,
+                hasMicPermission = true,
+                batteryLevel = 10,
+                isCharging = true
+            )
+        )
     }
 
     @Test
@@ -145,6 +230,12 @@ class ExampleRobolectricTest {
         assertTrue(state.activeLanguage.contains("Hindi"))
         assertEquals(CaroLineBrainEngine.DEFAULT_GREETING_HI, state.speechSnippet)
         assertEquals(LiveState.DISCONNECTED, state.liveState)
+        assertEquals("Hey CaroLine", state.wakeWordPhrase)
+        assertTrue(state.isWakeWordEnabled)
+        assertEquals(ListeningPowerMode.BATTERY_SAVING, state.listeningPowerMode)
+        assertTrue(state.isBatterySavingListeningMode)
+        assertTrue(state.isScreenOffVoiceEnabled)
+        assertTrue(state.isBackgroundServiceEnabled)
         assertTrue(state.isFloatingBubbleEnabled)
         assertTrue(state.smartRoutines.isNotEmpty())
     }

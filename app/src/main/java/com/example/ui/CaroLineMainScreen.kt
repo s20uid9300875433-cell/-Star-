@@ -279,8 +279,8 @@ fun CaroLineMainScreen(
                             }
                         }
                         Text(
-                            text = "ULTIMATE ANDROID SMART JARVIS • Voice: ${uiState.activeLanguage}",
-                            fontSize = 11.sp,
+                            text = "WAKE: \"${uiState.wakeWordPhrase}\" • ${if (uiState.isBatterySavingListeningMode) "BATTERY-SAVING MODE" else "ACTIVE MODE"} • ${uiState.activeLanguage}",
+                            fontSize = 10.sp,
                             color = JarvisCyan,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
@@ -421,7 +421,12 @@ fun CaroLineMainScreen(
                     amplitude = if (uiState.isMicMuted) 0f else audioAmplitude,
                     isMicMuted = uiState.isMicMuted,
                     activeWakeWord = uiState.wakeWordPhrase,
-                    enableAnimations = uiState.performanceProfile.enableHighFpsAnimations
+                    isBatterySavingMode = uiState.isBatterySavingListeningMode,
+                    isScreenOffSupported = uiState.isScreenOffConditionSupported,
+                    isForegroundServiceRunning = uiState.isForegroundServiceRunning,
+                    isInEcoStandby = uiState.isInEcoStandby,
+                    enableAnimations = uiState.performanceProfile.enableHighFpsAnimations,
+                    onWakeFromStandby = { viewModel.wakeAssistantFromStandby() }
                 )
 
                 // =====================================================================
@@ -613,9 +618,14 @@ fun CaroLineMainScreen(
             adaptiveAiSnapshot = uiState.adaptiveAiSnapshot,
             onRefreshWeather = { city -> viewModel.refreshLiveWeather(city) },
             onRefreshTelemetry = { viewModel.refreshDeviceTelemetry() },
-            // Wake Word & Background Service
+            // Wake Word, Battery-Saving Mode, Screen-Off Support & Foreground Mic Service
             wakeWordEnabled = uiState.isWakeWordEnabled,
             selectedWakeWord = uiState.wakeWordPhrase,
+            listeningPowerMode = uiState.listeningPowerMode,
+            isBatterySavingListeningMode = uiState.isBatterySavingListeningMode,
+            isScreenOffVoiceEnabled = uiState.isScreenOffVoiceEnabled,
+            isScreenOffConditionSupported = uiState.isScreenOffConditionSupported,
+            isInEcoStandby = uiState.isInEcoStandby,
             isHandsFreeMode = uiState.isHandsFreeMode,
             isBackgroundServiceEnabled = uiState.isBackgroundServiceEnabled,
             isForegroundServiceRunning = uiState.isForegroundServiceRunning,
@@ -623,6 +633,10 @@ fun CaroLineMainScreen(
             onLockLanguageToHindi = { viewModel.lockLanguageToHindi() },
             onToggleWakeWord = { viewModel.setWakeWordEnabled(!uiState.isWakeWordEnabled) },
             onSelectWakeWord = { viewModel.setWakeWordPhrase(it) },
+            onSelectListeningPowerMode = { viewModel.setListeningPowerMode(it) },
+            onToggleBatterySavingListeningMode = { viewModel.toggleBatterySavingListeningMode() },
+            onToggleScreenOffVoiceSupport = { viewModel.toggleScreenOffVoiceSupport() },
+            onWakeFromEcoStandby = { viewModel.wakeAssistantFromStandby() },
             onToggleHandsFree = { viewModel.toggleHandsFree() },
             onToggleBackgroundService = { viewModel.toggleBackgroundService() },
             // Music & Video Preferences
@@ -1130,21 +1144,29 @@ private fun ListeningAndSpeakingStatusBar(
     amplitude: Float,
     isMicMuted: Boolean,
     activeWakeWord: String,
-    enableAnimations: Boolean = true
+    isBatterySavingMode: Boolean = true,
+    isScreenOffSupported: Boolean = true,
+    isForegroundServiceRunning: Boolean = false,
+    isInEcoStandby: Boolean = false,
+    enableAnimations: Boolean = true,
+    onWakeFromStandby: () -> Unit = {}
 ) {
+    val modeTag = if (isBatterySavingMode) "BATTERY-SAVING" else "ACTIVE"
     val statusText = when {
         isMicMuted -> "MICROPHONE MUTED"
         liveState == LiveState.SPEAKING -> "CAROLINE SPEAKING..."
         liveState == LiveState.THINKING || liveState == LiveState.CONNECTING -> "CAROLINE THINKING..."
-        liveState == LiveState.LISTENING -> "LISTENING • SAY \"$activeWakeWord\""
+        isInEcoStandby -> "ECO STANDBY • TAP OR SAY \"$activeWakeWord\""
+        liveState == LiveState.LISTENING -> "$modeTag LISTENING • SAY \"$activeWakeWord\""
         liveState == LiveState.ERROR -> "VOICE ENGINE READY — TAP MIC TO RETRY"
-        else -> "STANDBY • TAP MICROPHONE TO SPEAK"
+        else -> "STANDBY ($modeTag) • WAKE WORD: \"$activeWakeWord\""
     }
 
     val statusColor = when {
         isMicMuted -> AlertRed
         liveState == LiveState.SPEAKING -> AccentGold
         liveState == LiveState.THINKING || liveState == LiveState.CONNECTING -> SoftLilac
+        isInEcoStandby -> AccentGold
         liveState == LiveState.LISTENING -> JarvisEmerald
         else -> JarvisCyan
     }
@@ -1157,7 +1179,13 @@ private fun ListeningAndSpeakingStatusBar(
             color = statusColor.copy(alpha = 0.14f),
             shape = RoundedCornerShape(50),
             border = BorderStroke(1.dp, statusColor.copy(alpha = 0.7f)),
-            modifier = Modifier.testTag("listening_speaking_status_pill")
+            modifier = Modifier
+                .clickable {
+                    if (isInEcoStandby) {
+                        onWakeFromStandby()
+                    }
+                }
+                .testTag("listening_speaking_status_pill")
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -1173,14 +1201,39 @@ private fun ListeningAndSpeakingStatusBar(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = statusText,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     color = statusColor,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (isForegroundServiceRunning) "● Foreground Mic Service Active" else "○ Foreground Mic Service Ready",
+                fontSize = 10.sp,
+                color = if (isForegroundServiceRunning) JarvisEmerald else MutedVioletGray,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "•",
+                fontSize = 10.sp,
+                color = MutedVioletGray
+            )
+            Text(
+                text = if (isScreenOffSupported) "Screen-Off Supported" else "Screen-On Mode",
+                fontSize = 10.sp,
+                color = if (isScreenOffSupported) JarvisCyan else MutedVioletGray,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
 
         if (enableAnimations) {
             AudioWaveform(

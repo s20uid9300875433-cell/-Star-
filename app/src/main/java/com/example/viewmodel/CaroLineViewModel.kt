@@ -10,6 +10,7 @@ import com.example.BuildConfig
 import com.example.audio.AudioPlayer
 import com.example.audio.AudioStreamer
 import com.example.audio.BengaliSpeechRecognizer
+import com.example.audio.ListeningPowerMode
 import com.example.live.AdaptiveAiManager
 import com.example.live.AdaptiveAiSnapshot
 import com.example.live.AiProviderType
@@ -154,9 +155,16 @@ data class CaroLineUiState(
     val isVoiceMuted: Boolean = false,
     val useOpenAiTts: Boolean = false,
     val openAiTtsVoice: String = "nova",
-    // Smart Wake Word Settings
+    // Smart Wake Word & Battery-Saving Background Voice Assistant Settings
     val isWakeWordEnabled: Boolean = true,
     val wakeWordPhrase: String = "Hey CaroLine",
+    val listeningPowerMode: ListeningPowerMode = ListeningPowerMode.BATTERY_SAVING,
+    val isBatterySavingListeningMode: Boolean = true,
+    val isScreenOffVoiceEnabled: Boolean = true,
+    val isScreenOffConditionSupported: Boolean = true,
+    val isInEcoStandby: Boolean = false,
+    val isWakeWordActiveWindow: Boolean = false,
+    val listeningCycleStatusText: String = "Battery-Saving Mode • Wake Word: \"Hey CaroLine\"",
     // Music & Video Preferences
     val preferredMusicService: String = "Auto (Smart Play)",
     val enableBuiltInMusicFallback: Boolean = true,
@@ -221,6 +229,8 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         private const val KEY_AUTO_PERF_PROFILE = "auto_performance_profile_a32"
         private const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
         private const val KEY_WAKE_WORD_PHRASE = "wake_word_phrase"
+        private const val KEY_LISTENING_POWER_MODE = "listening_power_mode_a32"
+        private const val KEY_SCREEN_OFF_VOICE_ENABLED = "screen_off_voice_enabled_a32"
         private const val KEY_PREF_MUSIC_SERVICE = "preferred_music_service"
         private const val KEY_BUILTIN_MUSIC_FALLBACK = "builtin_music_fallback"
         private const val KEY_SELECTED_THEME = "selected_theme_name"
@@ -280,6 +290,8 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         GeminiLiveSession(toolExecutor, this)
     }
 
+    private var wakeWordWindowJob: Job? = null
+
     private val hindiSpeechRecognizer = BengaliSpeechRecognizer(
         context = appContext,
         onPartialTranscript = { partial ->
@@ -298,6 +310,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
                 _uiState.value = _uiState.value.copy(
                     liveState = LiveState.LISTENING,
                     isMicHardwareVerified = true,
+                    isInEcoStandby = false,
                     currentEmotion = AvatarEmotion.LISTENING,
                     errorMessage = null
                 )
@@ -305,6 +318,24 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         },
         onErrorDiagnostic = { notice ->
             _uiState.value = _uiState.value.copy(errorMessage = notice)
+        },
+        onWakeWordDetected = { _ ->
+            activateWakeWordWindow()
+        },
+        onEcoStandbyEntered = { reason ->
+            _uiState.value = _uiState.value.copy(
+                isInEcoStandby = true,
+                listeningCycleStatusText = "Eco Standby • Wake Word: \"${_uiState.value.wakeWordPhrase}\""
+            )
+            if (_uiState.value.isBackgroundServiceEnabled && _uiState.value.isForegroundServiceRunning) {
+                CaroLineVoiceService.startOrUpdate(
+                    context = appContext,
+                    statusText = reason,
+                    wakeWord = _uiState.value.wakeWordPhrase,
+                    batterySavingMode = _uiState.value.isBatterySavingListeningMode,
+                    screenOffSupported = _uiState.value.isScreenOffVoiceEnabled
+                )
+            }
         }
     )
 
@@ -333,7 +364,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
                     liveState = LiveState.LISTENING,
                     currentEmotion = AvatarEmotion.LISTENING
                 )
-                if (_uiState.value.isHandsFreeMode && _uiState.value.isScreenInteractive) {
+                if (_uiState.value.isHandsFreeMode && (_uiState.value.isScreenInteractive || canListenWhileScreenOff())) {
                     hindiSpeechRecognizer.resumeAfterAiSpeech()
                     ensureContinuousListeningActive()
                 }
@@ -459,6 +490,9 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         val savedBgService = sharedPrefs.getBoolean(KEY_BG_SERVICE_ENABLED, true)
         val savedWakeWordEnabled = sharedPrefs.getBoolean(KEY_WAKE_WORD_ENABLED, true)
         val savedWakeWordPhrase = sharedPrefs.getString(KEY_WAKE_WORD_PHRASE, "Hey CaroLine") ?: "Hey CaroLine"
+        val savedPowerModeId = sharedPrefs.getString(KEY_LISTENING_POWER_MODE, ListeningPowerMode.BATTERY_SAVING.id)
+        val savedPowerMode = ListeningPowerMode.fromId(savedPowerModeId)
+        val savedScreenOffVoice = sharedPrefs.getBoolean(KEY_SCREEN_OFF_VOICE_ENABLED, true)
         val savedMusicService = sharedPrefs.getString(KEY_PREF_MUSIC_SERVICE, "Auto (Smart Play)") ?: "Auto (Smart Play)"
         val savedBuiltInMusic = sharedPrefs.getBoolean(KEY_BUILTIN_MUSIC_FALLBACK, true)
         val savedTheme = sharedPrefs.getString(KEY_SELECTED_THEME, "Anime-JARVIS Gold & Cyan") ?: "Anime-JARVIS Gold & Cyan"
@@ -482,6 +516,8 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         hindiSpeechRecognizer.preferredLanguageCode = savedSpokenLangCode
         hindiSpeechRecognizer.isWakeWordEnabled = savedWakeWordEnabled
         hindiSpeechRecognizer.configuredWakeWord = savedWakeWordPhrase
+        hindiSpeechRecognizer.listeningPowerMode = savedPowerMode
+        hindiSpeechRecognizer.isScreenOffSupportEnabled = savedScreenOffVoice
 
         toolExecutor.preferredMusicService = savedMusicService
         toolExecutor.enableBuiltInMusicFallback = savedBuiltInMusic
@@ -514,6 +550,10 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
             isBackgroundServiceEnabled = savedBgService,
             isWakeWordEnabled = savedWakeWordEnabled,
             wakeWordPhrase = savedWakeWordPhrase,
+            listeningPowerMode = savedPowerMode,
+            isBatterySavingListeningMode = savedPowerMode == ListeningPowerMode.BATTERY_SAVING,
+            isScreenOffVoiceEnabled = savedScreenOffVoice,
+            listeningCycleStatusText = "${savedPowerMode.titleEn} • Wake: \"$savedWakeWordPhrase\"",
             preferredMusicService = savedMusicService,
             enableBuiltInMusicFallback = savedBuiltInMusic,
             selectedThemeName = savedTheme,
@@ -556,16 +596,46 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         // Observe Foreground Voice Service & Floating Window events (shared single engine!)
         viewModelScope.launch {
             CaroLineVoiceService.isServiceRunning.collect { running ->
-                _uiState.value = _uiState.value.copy(isForegroundServiceRunning = running)
+                hindiSpeechRecognizer.isForegroundServiceActive = running
+                val screenOffSupported = BengaliSpeechRecognizer.isScreenOffListeningSupported(
+                    isForegroundServiceRunning = running,
+                    isScreenOffSupportEnabled = _uiState.value.isScreenOffVoiceEnabled,
+                    hasMicPermission = true,
+                    batteryLevel = _uiState.value.batteryLevel,
+                    isCharging = _uiState.value.isCharging
+                )
+                _uiState.value = _uiState.value.copy(
+                    isForegroundServiceRunning = running,
+                    isScreenOffConditionSupported = screenOffSupported
+                )
             }
         }
 
         viewModelScope.launch {
             CaroLineVoiceService.isScreenInteractive.collect { interactive ->
                 _uiState.value = _uiState.value.copy(isScreenInteractive = interactive)
+                hindiSpeechRecognizer.onScreenInteractiveChanged(interactive)
                 if (!interactive) {
-                    // Pause recognizer when screen turns off to prevent battery drain
-                    hindiSpeechRecognizer.pauseForAiSpeech()
+                    if (canListenWhileScreenOff() && _uiState.value.liveState != LiveState.DISCONNECTED) {
+                        val status = "Screen-Off Battery-Saving Mode • Say \"${_uiState.value.wakeWordPhrase}\""
+                        _uiState.value = _uiState.value.copy(listeningCycleStatusText = status)
+                        CaroLineVoiceService.startOrUpdate(
+                            context = appContext,
+                            statusText = status,
+                            wakeWord = _uiState.value.wakeWordPhrase,
+                            batterySavingMode = _uiState.value.isBatterySavingListeningMode,
+                            screenOffSupported = _uiState.value.isScreenOffVoiceEnabled
+                        )
+                    } else {
+                        hindiSpeechRecognizer.pauseForAiSpeech()
+                    }
+                } else if (_uiState.value.liveState != LiveState.DISCONNECTED) {
+                    val status = "${_uiState.value.listeningPowerMode.titleEn} • Wake: \"${_uiState.value.wakeWordPhrase}\""
+                    _uiState.value = _uiState.value.copy(
+                        isInEcoStandby = false,
+                        listeningCycleStatusText = status
+                    )
+                    ensureContinuousListeningActive()
                 }
             }
         }
@@ -578,9 +648,13 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
 
         viewModelScope.launch {
             CaroLineVoiceService.resumeRequestedEvents.collect {
-                if (_uiState.value.liveState != LiveState.DISCONNECTED) {
-                    ensureContinuousListeningActive()
-                }
+                wakeAssistantFromStandby()
+            }
+        }
+
+        viewModelScope.launch {
+            CaroLineVoiceService.toggleBatterySaverEvents.collect {
+                toggleBatterySavingListeningMode()
             }
         }
 
@@ -626,15 +700,29 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         val info = toolExecutor.getSystemInfo()
         val netReport = toolExecutor.weatherNetworkEngine.getNetworkAndDataUsage()
         val canOverlay = CaroLineVoiceService.canDrawOverlays(appContext)
+        val batLevel = (info["battery_level"] as? Int) ?: 100
+        val charging = (info["is_charging"] as? Boolean) ?: false
+        hindiSpeechRecognizer.batteryLevel = batLevel
+        hindiSpeechRecognizer.isCharging = charging
+
+        val screenOffSupported = BengaliSpeechRecognizer.isScreenOffListeningSupported(
+            isForegroundServiceRunning = _uiState.value.isForegroundServiceRunning || _uiState.value.isBackgroundServiceEnabled,
+            isScreenOffSupportEnabled = _uiState.value.isScreenOffVoiceEnabled,
+            hasMicPermission = true,
+            batteryLevel = batLevel,
+            isCharging = charging
+        )
+
         _uiState.value = _uiState.value.copy(
-            batteryLevel = (info["battery_level"] as? Int) ?: 100,
-            isCharging = (info["is_charging"] as? Boolean) ?: false,
+            batteryLevel = batLevel,
+            isCharging = charging,
             isOnline = (info["is_online"] as? Boolean) ?: true,
             networkType = (info["network_type"] as? String) ?: "Wi-Fi",
             availRamMb = (info["avail_ram_mb"] as? Int) ?: 2048,
             totalRamMb = (info["total_ram_mb"] as? Int) ?: 4096,
             networkAndDataReport = netReport,
-            canDrawSystemOverlays = canOverlay
+            canDrawSystemOverlays = canOverlay,
+            isScreenOffConditionSupported = screenOffSupported
         )
     }
 
@@ -865,13 +953,100 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         sharedPrefs.edit().putBoolean(KEY_WAKE_WORD_ENABLED, enabled).apply()
         hindiSpeechRecognizer.isWakeWordEnabled = enabled
         _uiState.value = _uiState.value.copy(isWakeWordEnabled = enabled)
+        syncForegroundServiceNotification()
     }
 
     fun setWakeWordPhrase(phrase: String) {
         val clean = phrase.trim().ifEmpty { "Hey CaroLine" }
         sharedPrefs.edit().putString(KEY_WAKE_WORD_PHRASE, clean).apply()
         hindiSpeechRecognizer.configuredWakeWord = clean
-        _uiState.value = _uiState.value.copy(wakeWordPhrase = clean)
+        _uiState.value = _uiState.value.copy(
+            wakeWordPhrase = clean,
+            listeningCycleStatusText = "${_uiState.value.listeningPowerMode.titleEn} • Wake: \"$clean\""
+        )
+        syncForegroundServiceNotification()
+    }
+
+    fun setListeningPowerMode(mode: ListeningPowerMode) {
+        sharedPrefs.edit().putString(KEY_LISTENING_POWER_MODE, mode.id).apply()
+        hindiSpeechRecognizer.listeningPowerMode = mode
+        val isSaver = mode == ListeningPowerMode.BATTERY_SAVING
+        _uiState.value = _uiState.value.copy(
+            listeningPowerMode = mode,
+            isBatterySavingListeningMode = isSaver,
+            listeningCycleStatusText = "${mode.titleEn} • Wake: \"${_uiState.value.wakeWordPhrase}\""
+        )
+        syncForegroundServiceNotification()
+    }
+
+    fun toggleBatterySavingListeningMode() {
+        val nextMode = if (_uiState.value.listeningPowerMode == ListeningPowerMode.BATTERY_SAVING) {
+            ListeningPowerMode.CONTINUOUS_ACTIVE
+        } else {
+            ListeningPowerMode.BATTERY_SAVING
+        }
+        setListeningPowerMode(nextMode)
+    }
+
+    fun toggleScreenOffVoiceSupport() {
+        val next = !_uiState.value.isScreenOffVoiceEnabled
+        sharedPrefs.edit().putBoolean(KEY_SCREEN_OFF_VOICE_ENABLED, next).apply()
+        hindiSpeechRecognizer.isScreenOffSupportEnabled = next
+        val supported = BengaliSpeechRecognizer.isScreenOffListeningSupported(
+            isForegroundServiceRunning = _uiState.value.isForegroundServiceRunning || _uiState.value.isBackgroundServiceEnabled,
+            isScreenOffSupportEnabled = next,
+            hasMicPermission = true,
+            batteryLevel = _uiState.value.batteryLevel,
+            isCharging = _uiState.value.isCharging
+        )
+        _uiState.value = _uiState.value.copy(
+            isScreenOffVoiceEnabled = next,
+            isScreenOffConditionSupported = supported
+        )
+        syncForegroundServiceNotification()
+    }
+
+    fun wakeAssistantFromStandby() {
+        activateWakeWordWindow()
+        if (_uiState.value.liveState == LiveState.DISCONNECTED) {
+            startSession()
+        } else {
+            _uiState.value = _uiState.value.copy(isInEcoStandby = false)
+            hindiSpeechRecognizer.wakeFromEcoStandby()
+            ensureContinuousListeningActive()
+        }
+    }
+
+    private fun activateWakeWordWindow() {
+        wakeWordWindowJob?.cancel()
+        _uiState.value = _uiState.value.copy(isWakeWordActiveWindow = true)
+        wakeWordWindowJob = viewModelScope.launch {
+            delay(20_000L)
+            _uiState.value = _uiState.value.copy(isWakeWordActiveWindow = false)
+        }
+    }
+
+    private fun canListenWhileScreenOff(): Boolean {
+        return BengaliSpeechRecognizer.isScreenOffListeningSupported(
+            isForegroundServiceRunning = _uiState.value.isForegroundServiceRunning || _uiState.value.isBackgroundServiceEnabled,
+            isScreenOffSupportEnabled = _uiState.value.isScreenOffVoiceEnabled,
+            hasMicPermission = true,
+            batteryLevel = _uiState.value.batteryLevel,
+            isCharging = _uiState.value.isCharging
+        )
+    }
+
+    private fun syncForegroundServiceNotification() {
+        if (_uiState.value.isBackgroundServiceEnabled && _uiState.value.liveState != LiveState.DISCONNECTED) {
+            val modeText = if (_uiState.value.isBatterySavingListeningMode) "Battery-Saving Mode" else "Active Listening"
+            CaroLineVoiceService.startOrUpdate(
+                context = appContext,
+                statusText = "Wake: \"${_uiState.value.wakeWordPhrase}\" • $modeText",
+                wakeWord = _uiState.value.wakeWordPhrase,
+                batterySavingMode = _uiState.value.isBatterySavingListeningMode,
+                screenOffSupported = _uiState.value.isScreenOffVoiceEnabled
+            )
+        }
     }
 
     fun setPreferredMusicService(serviceName: String) {
@@ -1001,9 +1176,13 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         refreshDeviceTelemetry()
 
         if (_uiState.value.isBackgroundServiceEnabled) {
+            val modeText = if (_uiState.value.isBatterySavingListeningMode) "Battery-Saving Mode" else "Active Mode"
             CaroLineVoiceService.startOrUpdate(
-                appContext,
-                "CaroLine AI A3.2 Active — Listening for commands"
+                context = appContext,
+                statusText = "Wake: \"${_uiState.value.wakeWordPhrase}\" • $modeText",
+                wakeWord = _uiState.value.wakeWordPhrase,
+                batterySavingMode = _uiState.value.isBatterySavingListeningMode,
+                screenOffSupported = _uiState.value.isScreenOffVoiceEnabled
             )
         }
         if (_uiState.value.isFloatingBubbleEnabled && CaroLineVoiceService.canDrawOverlays(appContext)) {
@@ -1018,6 +1197,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
                 activeEngine = ActiveEngine.BENGALI_VOICE_ENGINE,
                 liveState = LiveState.LISTENING,
                 isMicHardwareVerified = true,
+                isInEcoStandby = false,
                 currentEmotion = AvatarEmotion.LISTENING,
                 speechSnippet = greeting
             )
@@ -1042,6 +1222,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
                 activeEngine = ActiveEngine.BENGALI_VOICE_ENGINE,
                 liveState = LiveState.LISTENING,
                 isMicHardwareVerified = true,
+                isInEcoStandby = false,
                 currentEmotion = AvatarEmotion.LISTENING,
                 speechSnippet = greeting
             )
@@ -1054,7 +1235,7 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
 
     private fun ensureContinuousListeningActive() {
         if (_uiState.value.liveState == LiveState.DISCONNECTED) return
-        if (!_uiState.value.isScreenInteractive) return
+        if (!_uiState.value.isScreenInteractive && !canListenWhileScreenOff()) return
 
         if (hindiSpeechRecognizer.isAvailable()) {
             hindiSpeechRecognizer.resumeAfterAiSpeech()
@@ -1068,15 +1249,52 @@ class CaroLineViewModel(application: Application) : AndroidViewModel(application
         val clean = recognizedText.trim()
         if (clean.isEmpty()) return
 
+        val wakePhrase = _uiState.value.wakeWordPhrase
+        val hasWakeWord = BengaliSpeechRecognizer.matchesWakeWord(clean, wakePhrase)
+
+        // When screen is OFF and wake word is enabled, require "Hey CaroLine" unless already in active 20s window
+        if (!_uiState.value.isScreenInteractive &&
+            _uiState.value.isWakeWordEnabled &&
+            !_uiState.value.isWakeWordActiveWindow &&
+            !hasWakeWord
+        ) {
+            // Ignore ambient noise while screen is off and re-schedule battery-saving listening
+            ensureContinuousListeningActive()
+            return
+        }
+
+        val effectiveCommand = if (hasWakeWord) {
+            activateWakeWordWindow()
+            BengaliSpeechRecognizer.extractCommandAfterWakeWord(clean, wakePhrase)
+        } else {
+            clean
+        }
+
+        // If the user only said "Hey CaroLine" without a command after it, acknowledge & listen
+        if (hasWakeWord && effectiveCommand.isEmpty()) {
+            val wakeAck = when {
+                _uiState.value.spokenLanguageCode.startsWith("bn") -> "হ্যাঁ বস, আমি শুনছি! বলুন কী করতে হবে?"
+                _uiState.value.spokenLanguageCode.startsWith("en") -> "Yes Boss, I am listening! Tell me what to do."
+                else -> "जी बॉस, मैं सुन रही हूँ! बताइए क्या करना है?"
+            }
+            _uiState.value = _uiState.value.copy(
+                speechSnippet = wakeAck,
+                errorMessage = null
+            )
+            hindiSpeechRecognizer.pauseForAiSpeech()
+            brainEngine.speak(wakeAck, providerBadge = "HEY CAROLINE")
+            return
+        }
+
         _uiState.value = _uiState.value.copy(
-            speechSnippet = "🗣️ \"$clean\"",
+            speechSnippet = "🗣️ \"$effectiveCommand\"",
             errorMessage = null
         )
 
         hindiSpeechRecognizer.pauseForAiSpeech()
 
         brainEngine.processPrompt(
-            input = clean,
+            input = effectiveCommand,
             aiRouterFallback = { query ->
                 val resp = aiRouter.generateResponse(
                     userPrompt = query,
